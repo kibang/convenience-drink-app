@@ -49,9 +49,9 @@ function hav(a,b,c,d){const R=6371000,r=Math.PI/180,x=Math.sin((c-a)*r/2)**2+Mat
 function chainOf(t){const s=((t.brand||"")+" "+(t.name||"")+" "+(t["brand:en"]||"")+" "+(t["name:en"]||"")).toLowerCase();
  if(/\bcu\b|씨유/.test(s))return"CU";if(/gs25|gs 25|지에스/.test(s))return"GS25";if(/7-?eleven|세븐일레븐|seven/.test(s))return"7-Eleven";if(/emart24|이마트24|이마트 24/.test(s))return"emart24";return null}
 async function loadStores(lat,lon){const rad=+document.getElementById("radius").value;const msg=document.getElementById("locMsg");msg.textContent="주변 매장 검색 중…";
- const q=`[out:json][timeout:25];(node["shop"="convenience"](around:${rad},${lat},${lon});way["shop"="convenience"](around:${rad},${lat},${lon}););out center;`;
+ const q=`[out:json][timeout:10];(node["shop"="convenience"](around:${rad},${lat},${lon});way["shop"="convenience"](around:${rad},${lat},${lon}););out center;`;
  const SV=["https://overpass-api.de/api/interpreter","https://overpass.kumi.systems/api/interpreter","https://overpass.private.coffee/api/interpreter"];
- try{let j=null;for(const u of SV){try{const r=await fetch(u,{method:"POST",body:"data="+encodeURIComponent(q)});if(!r.ok)continue;j=await r.json();break}catch(e){}}
+ try{let j=null;for(const u of SV){try{const ac=new AbortController(),tm=setTimeout(()=>ac.abort(),12000);const r=await fetch(u,{method:"POST",body:"data="+encodeURIComponent(q),signal:ac.signal});clearTimeout(tm);if(!r.ok)continue;j=await r.json();break}catch(e){}}
   if(!j)throw new Error("all");
   stores=j.elements.map(e=>{const la=e.lat??e.center?.lat,lo=e.lon??e.center?.lon;return{chain:chainOf(e.tags||{}),name:(e.tags||{}).name||"(이름 없음)",d:Math.round(hav(lat,lon,la,lo))}}).filter(s=>s.chain).sort((a,b)=>a.d-b.d);
   msg.textContent=`반경 ${rad}m 안에 4대 편의점 ${stores.length}곳 (OpenStreetMap 기준, 누락 가능)`;
