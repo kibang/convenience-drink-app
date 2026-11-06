@@ -1,8 +1,14 @@
-<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>내 주변 편의점 음료 행사 찾기</title>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <style>
-body{font-family:system-ui,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;margin:0;background:#f5f6f8;color:#222}
-header{background:#2b59c3;color:#fff;padding:14px 18px}header h1{margin:0;font-size:20px}header small{opacity:.85}
+:root{color-scheme:light}
+body{font-family:system-ui,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;margin:0;background:#f5f6f8;color:#222;word-break:keep-all}
+header{background:#2b59c3;color:#fff;padding:14px 18px}header h1{margin:0;font-size:20px;line-height:1.35}header small{opacity:.9}
 main{max-width:1100px;margin:auto;padding:12px}
 .card{background:#fff;border-radius:10px;padding:12px;margin-bottom:12px;box-shadow:0 1px 3px #0001}
 .row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0}.row b{min-width:80px}
@@ -12,25 +18,89 @@ input[type=text]{padding:6px;border:1px solid #ccd;border-radius:6px;min-width:2
 button.act{padding:6px 12px;border:0;border-radius:6px;background:#2b59c3;color:#fff;cursor:pointer}
 #grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
 .item{background:#fff;border-radius:10px;padding:10px;box-shadow:0 1px 3px #0001;font-size:14px}
+.item.picked{outline:2px solid #2b59c3;background:#f4f7ff}
 .item img{width:100%;height:150px;object-fit:contain;background:#fafafa}
 .badge{display:inline-block;padding:2px 7px;border-radius:6px;color:#fff;font-size:12px;margin-right:4px}
 .CU{background:#7b2c8f}.GS25{background:#0a6cbf}.\37-Eleven,.b7{background:#00843d}.emart24{background:#f5a300}
 .promo{background:#e33}.near{color:#555;font-size:12px;margin-top:4px}.warn{background:#fff4e0;border-left:4px solid #f5a300;padding:8px;font-size:13px}
-.gift{color:#b05;font-size:12px}ul.stores{margin:4px 0;padding-left:18px;font-size:13px}
+.gift{color:#b05;font-size:12px}ul.stores{margin:4px 0;padding:0;list-style:none;font-size:13px}
 *,*::before,*::after{box-sizing:border-box}html,body{overflow-x:hidden}
 .row>span[id^=f]{display:flex;flex-wrap:wrap;gap:6px;flex:1 1 220px;min-width:0}
 .chip{display:inline-flex;align-items:center;justify-content:center;height:32px;line-height:1;white-space:nowrap;margin:0}
 button.act,select{height:34px;font-size:14px}select{padding:0 8px;border:1px solid #ccd;border-radius:6px;background:#fff}
 input[type=text]{height:34px;font-size:16px}label{display:inline-flex;align-items:center;gap:4px;font-size:14px}
-@media(max-width:600px){.row b{min-width:0;flex:0 0 100%}input[type=text]{min-width:0;flex:1 1 160px}label{margin-left:0!important;flex:1 1 100%}#q{flex:1 1 100%}main{padding:8px}}
-</style></head><body>
-<header><h1>🥤 내 주변 편의점 음료 행사 찾기</h1><small id="upd"></small></header>
+:focus-visible{outline:3px solid #1a3e8a;outline-offset:2px}
+.map-card{padding:10px}
+#map{height:240px;width:100%;border-radius:10px;background:#e7eef6}
+.leaflet-container img{max-width:none !important;max-height:none !important}
+.leaflet-bottom.leaflet-right{max-width:calc(100% - 46px)}
+.leaflet-control-attribution{font-size:10px;line-height:1.35;max-width:100%;white-space:normal;background:rgba(255,255,255,.94)}
+.map-attr{margin:6px 2px 0;font-size:12px;color:#333}
+.pin-wrap{background:transparent;border:0}
+.pin{display:block;width:16px;height:16px;margin:3px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #222}
+.pin.me{width:14px;height:14px;margin:2px;box-shadow:0 0 0 2px #fff,0 0 0 4px #2b59c3}
+.pin.sel{box-shadow:0 0 0 2px #fff,0 0 0 4px #e33}
+.tabs{display:flex;gap:8px;margin:0 0 10px}
+.tabs [role=tab]{flex:1;min-height:44px;border-radius:10px;border:1px solid #c5cde0;background:#fff;font-size:16px;font-weight:700;cursor:pointer}
+.tabs [role=tab][aria-selected="true"]{background:#2b59c3;color:#fff;border-color:#2b59c3}
+.pick{background:#e8efff;border-left:4px solid #2b59c3;padding:8px;font-size:14px;margin:8px 0}
+.store-hit{display:flex;align-items:center;flex-wrap:wrap;gap:4px;width:100%;text-align:left;background:#fff;border:1px solid #e6e8ee;border-radius:8px;padding:6px 8px;min-height:44px;font-size:14px;cursor:pointer}
+.store-hit.sel{background:#e8efff;border-color:#2b59c3}
+.food-card{display:flex;flex-direction:column;gap:8px;background:#fff;border-radius:10px;padding:10px;margin-bottom:10px;box-shadow:0 1px 3px #0001;border:2px solid transparent}
+.food-card.on{border-color:#c2410c;background:#fff8f4}
+.photo img{width:100%;height:140px;object-fit:cover;background:#f6f6f6;border-radius:8px}
+.photo.brand img,.photo.generic img{object-fit:contain;background:#fff;border:1px solid #eee}
+.photo.none{min-height:72px;display:flex;align-items:center;justify-content:center;background:#f3f4f6;border-radius:8px;padding:8px}
+.photo-cap{margin:4px 0 0;font-size:12px;color:#333}
+.food-pick{display:block;width:100%;text-align:left;background:none;border:0;padding:4px 0;font-size:16px;font-weight:700;cursor:pointer;min-height:44px}
+.meta{margin:0;font-size:14px;color:#333}
+.est{display:inline-block;margin:4px 0;font-size:12px;color:#7a4b00;background:#fff6e8;padding:3px 6px;border-radius:6px}
+.maplink{display:inline-flex;align-items:center;min-height:44px;font-size:14px}
+.empty{font-size:14px;color:#444}
+mark{background:#ffe08a;padding:0 3px;border-radius:3px}
+@media(max-width:600px){
+header h1{font-size:18px}
+.row b{min-width:0;flex:0 0 100%}
+input[type=text]{min-width:0;flex:1 1 160px}
+label{margin-left:0!important;flex:1 1 100%}
+#q{flex:1 1 100%}
+main{padding:8px}
+#map{height:210px}
+#grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<header>
+<h1>🥤 내 주변 편의점 음료 행사 찾기</h1>
+<small id="upd"></small>
+</header>
 <main>
-<div class="card"><div class="row"><b>📍 내 위치</b><button class="act" id="geo">현재 위치 사용</button>
-<input type="text" id="addr" placeholder="주소 또는 위도,경도 (예: 37.5665,126.9780)"><button class="act" id="addrBtn">검색</button>
-<select id="radius"><option value="500">500m</option><option value="1000" selected>1km</option><option value="2000">2km</option></select><select id="preset"><option value="">지역 바로 선택…</option><option value="37.5663,126.9779">서울시청</option><option value="37.4979,127.0276">강남역</option><option value="37.5572,126.9245">홍대입구역</option><option value="37.5133,127.1001">잠실역</option><option value="37.5216,126.9243">여의도역</option><option value="37.5446,127.056">성수역</option><option value="37.5551,126.9368">신촌역</option><option value="37.5404,127.0692">건대입구역</option><option value="37.5714,126.9918">종로3가</option><option value="37.5927,127.0164">성신여대입구역</option><option value="37.2664,127.0001">수원역</option><option value="37.4563,126.7052">인천시청</option><option value="35.1578,129.06">부산 서면</option><option value="35.8693,128.5956">대구 동성로</option><option value="36.3326,127.4342">대전역</option><option value="35.1475,126.9156">광주 충장로</option></select></div>
-<div id="locMsg" class="near">위치를 설정하면 가까운 CU·GS25·세븐일레븐·이마트24 매장을 보여드려요. (OpenStreetMap 데이터, 전국 매장 내장)</div>
-<ul class="stores" id="storeList"></ul></div>
+<div class="card">
+<div class="row"><b>📍 내 위치</b>
+<button class="act" id="geo" type="button">현재 위치 사용</button>
+<input type="text" id="addr" placeholder="주소 또는 위도,경도 (예: 37.5665,126.9780)" aria-label="주소 또는 좌표">
+<button class="act" id="addrBtn" type="button">검색</button>
+<select id="radius" aria-label="검색 반경"><option value="500">500m</option><option value="1000" selected>1km</option><option value="2000">2km</option></select>
+<select id="preset" aria-label="지역 바로 선택"><option value="">지역 바로 선택…</option><option value="37.5663,126.9779">서울시청</option><option value="37.4979,127.0276">강남역</option><option value="37.5572,126.9245">홍대입구역</option><option value="37.5133,127.1001">잠실역</option><option value="37.5216,126.9243">여의도역</option><option value="37.5446,127.056">성수역</option><option value="37.5551,126.9368">신촌역</option><option value="37.5404,127.0692">건대입구역</option><option value="37.5714,126.9918">종로3가</option><option value="37.5927,127.0164">성신여대입구역</option><option value="37.2664,127.0001">수원역</option><option value="37.4563,126.7052">인천시청</option><option value="35.1578,129.06">부산 서면</option><option value="35.8693,128.5956">대구 동성로</option><option value="36.3326,127.4342">대전역</option><option value="35.1475,126.9156">광주 충장로</option></select>
+</div>
+<div id="locMsg" class="near" role="status">위치를 설정하면 지도와 주변 편의점, 혼밥 추정 식당이 함께 바뀝니다.</div>
+</div>
+<div class="card map-card">
+<div id="map" role="application" aria-label="내 위치와 주변 장소 지도"></div>
+<p id="mapMsg" class="near" role="status"></p>
+<p class="map-attr">지도 © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> 기여자 · 타일 서버 OpenStreetMap</p>
+</div>
+<div class="tabs" role="tablist" aria-label="장소 종류">
+<button type="button" role="tab" id="tab-conv" aria-controls="panel-conv" aria-selected="true" tabindex="0">편의점</button>
+<button type="button" role="tab" id="tab-food" aria-controls="panel-food" aria-selected="false" tabindex="-1">혼밥 식당</button>
+</div>
+<section role="tabpanel" id="panel-conv" aria-labelledby="tab-conv">
+<div class="card">
+<p id="pickMsg" class="pick" role="status" hidden></p>
+<button class="act" id="clearPick" type="button" hidden>매장 선택 해제</button>
+<ul class="stores" id="storeList"></ul>
+</div>
 <div class="card">
 <div class="row"><b>음료 장르</b><span id="fGenre"></span></div>
 <div class="row"><b>가격대</b><span id="fPrice"></span></div>
@@ -38,46 +108,148 @@ input[type=text]{height:34px;font-size:16px}label{display:inline-flex;align-item
 <div class="row"><b>브랜드</b><span id="fChain"></span></div>
 <div class="row"><b>굿즈/증정</b><label><input type="checkbox" id="giftOnly"> 증정·굿즈 정보 있는 상품만</label>
 <label style="margin-left:12px"><input type="checkbox" id="nearOnly"> 주변에 매장 있는 브랜드만</label>
-<input type="text" id="q" placeholder="상품명 검색"></div>
-<div id="status" class="warn"></div></div>
-<div class="row"><b id="count"></b><button class="act" id="resetBtn" type="button">초기화</button> <select id="sort"><option value="price">가격 낮은순</option><option value="name">이름순</option><option value="dist">가까운 매장순</option></select></div>
+<input type="text" id="q" placeholder="상품명 검색" aria-label="상품명 검색"></div>
+<div id="status" class="warn"></div>
+</div>
+<div class="row"><b id="count"></b><button class="act" id="resetBtn" type="button">초기화</button>
+<select id="sort" aria-label="정렬"><option value="price">가격 낮은순</option><option value="name">이름순</option><option value="dist">가까운 매장순</option></select></div>
 <div id="grid"></div>
+</section>
+<section role="tabpanel" id="panel-food" aria-labelledby="tab-food" hidden>
+<div class="card">
+<p class="warn" id="honbapNote">혼밥 가능 여부는 업종·요리 유형으로 추정한 것이며, 매장에 확인한 사실이 아닙니다. 거리순이며 선택한 반경 안만 보여 줍니다.</p>
+<p class="near" id="photoPolicy">개별 매장 사진이 없으면 “등록된 매장 사진 없음”으로 둡니다. 브랜드 로고·다른 지점 사진은 대표 이미지이며, 그 매장의 사진이 아닙니다. 일반 음식 사진은 매장 사진으로 쓰지 않습니다.</p>
+<p id="foodStatus" class="near" role="status">식당 목록을 준비하는 중…</p>
+<button class="act" id="foodRetry" type="button" hidden>다시 시도</button>
+<div id="foodList"></div>
+</div>
+</section>
 </main>
+<script src="vendor/leaflet/leaflet.js"></script>
 <script src="data.js"></script>
 <script>
 const CH=["CU","GS25","7-Eleven","emart24"],CHK={"CU":"CU","GS25":"GS25","7-Eleven":"세븐일레븐","emart24":"이마트24"};
 const GENRES=["커피","탄산","주스","차","에너지/이온","우유/두유","생수","곡물/기타","주류","기타"];
 const PRICES=[["~1,500원",0,1500],["1,500~2,500원",1501,2500],["2,500~4,000원",2501,4000],["4,000~10,000원",4001,10000],["10,000원~",10001,1e9]];
 const PROMOS=["1+1","2+1","3+1","할인","골라담기","덤증정"];
-const S={genre:new Set(),price:new Set(),promo:new Set(),chain:new Set()};let stores=[],DATA={items:[],status:{}};
-function chips(id,list,key,label=x=>x){const el=document.getElementById(id);list.forEach((v,i)=>{const b=document.createElement("span");b.className="chip";b.textContent=label(v);b.dataset.v=typeof v=="string"?v:i;b.onclick=()=>{const k=b.dataset.v;S[key].has(k)?S[key].delete(k):S[key].add(k);b.classList.toggle("on");render()};el.appendChild(b)})}
+const S={genre:new Set(),price:new Set(),promo:new Set(),chain:new Set()};
+let stores=[],DATA={items:[],status:{}},allStores=[],LAST=null,ALL=null;
+let selectedStore=null,selectedFood=null,FOOD=null,foodState="idle",foodErr="",activeTab="conv",foodShown=[];
+let map,storeLayer,foodLayer,meLayer;
+const CHI=["CU","GS25","7-Eleven","emart24",null];
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
+function chips(id,list,key,label=x=>x){const el=document.getElementById(id);list.forEach((v,i)=>{const b=document.createElement("span");b.className="chip";b.textContent=label(v);b.dataset.v=typeof v=="string"?v:String(i);b.onclick=()=>{if(key==="chain")clearStorePick();const k=b.dataset.v;S[key].has(k)?S[key].delete(k):S[key].add(k);b.classList.toggle("on");render()};el.appendChild(b)})}
 function hav(a,b,c,d){const R=6371000,r=Math.PI/180,x=Math.sin((c-a)*r/2)**2+Math.cos(a*r)*Math.cos(c*r)*Math.sin((d-b)*r/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
 function chainOf(t){const s=((t.brand||"")+" "+(t.name||"")+" "+(t["brand:en"]||"")+" "+(t["name:en"]||"")).toLowerCase();
  if(/\bcu\b|씨유/.test(s))return"CU";if(/gs25|gs 25|지에스/.test(s))return"GS25";if(/7-?eleven|세븐일레븐|seven/.test(s))return"7-Eleven";if(/emart24|이마트24|이마트 24/.test(s))return"emart24";return null}
-const CHI=["CU","GS25","7-Eleven","emart24",null];let ALL=null,LAST=null;
 function setMsg(t){document.getElementById("locMsg").textContent=t}
+function pinIcon(cls,color,extra){return L.divIcon({className:"pin-wrap",html:`<span class="pin ${cls}" style="background:${color}" ${extra||""}></span>`,iconSize:[22,22],iconAnchor:[11,11]})}
+function samePlace(a,b){return a&&b&&a.lat===b.lat&&a.lon===b.lon&&a.name===b.name}
+function initMap(){
+ if(!window.L){document.getElementById("mapMsg").textContent="지도 라이브러리를 불러오지 못했어요. 아래 목록은 그대로 쓸 수 있어요.";return}
+ try{
+  map=L.map("map",{zoomControl:true,attributionControl:true}).setView([37.5665,126.978],12);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(map);
+  map.attributionControl.setPrefix(false);
+  storeLayer=L.layerGroup().addTo(map);
+  foodLayer=L.layerGroup().addTo(map);
+  meLayer=L.layerGroup().addTo(map);
+  setTimeout(()=>map.invalidateSize(),60);
+ }catch(e){document.getElementById("mapMsg").textContent="지도를 열지 못했어요. 아래 목록은 그대로 쓸 수 있어요."}
+}
+function drawMap(fit){
+ if(!map)return;
+ storeLayer.clearLayers();foodLayer.clearLayers();meLayer.clearLayers();
+ if(!LAST){map.setView([37.5665,126.978],12);return}
+ const lat=LAST[0],lon=LAST[1],rad=+document.getElementById("radius").value;
+ L.marker([lat,lon],{icon:pinIcon("me","#2b59c3"),keyboard:false,title:"내 위치",interactive:false}).addTo(meLayer);
+ L.circle([lat,lon],{radius:rad,color:"#2b59c3",weight:1,fillColor:"#2b59c3",fillOpacity:.05}).addTo(meLayer);
+ const bounds=[[lat,lon]];
+ if(activeTab==="conv"){
+  allStores.forEach(s=>{
+   const sel=samePlace(selectedStore,s);
+   const color=s.chain==="CU"?"#7b2c8f":s.chain==="GS25"?"#0a6cbf":s.chain==="7-Eleven"?"#00843d":s.chain==="emart24"?"#f5a300":"#888";
+   const m=L.marker([s.lat,s.lon],{icon:pinIcon("store-pin"+(sel?" sel":""),color,`data-chain="${esc(s.chain||"")}" data-name="${esc(s.name)}"`),title:`${s.name} ${s.d}m`,keyboard:true,zIndexOffset:sel?800:0});
+   m.on("click",()=>selectStore(s));
+   m.addTo(storeLayer);
+   bounds.push([s.lat,s.lon]);
+  });
+ }else{
+  foodShown.forEach(s=>{
+   const sel=selectedFood&&selectedFood.id===s.id;
+   const m=L.marker([s.lat,s.lon],{icon:pinIcon("food-pin"+(sel?" sel":""),"#c2410c",`data-food="${s.id}"`),title:`${s.name} ${s.d}m`,keyboard:true,zIndexOffset:sel?800:0});
+   m.on("click",()=>selectFood(s));
+   m.addTo(foodLayer);
+   bounds.push([s.lat,s.lon]);
+  });
+ }
+ if(fit){
+  const dlat=rad/111000,dlon=rad/(111000*Math.cos(lat*Math.PI/180));
+  bounds.push([lat+dlat,lon+dlon],[lat-dlat,lon-dlon]);
+  map.fitBounds(bounds,{padding:[18,18],maxZoom:16});
+ }
+ setTimeout(()=>map.invalidateSize(),40);
+}
+function clearStorePick(){
+ selectedStore=null;
+ document.getElementById("pickMsg").hidden=true;
+ document.getElementById("clearPick").hidden=true;
+ renderStoreList();
+ if(map)drawMap(false);
+}
+function selectStore(s){
+ selectedStore=s;
+ const banner=document.getElementById("pickMsg"),btn=document.getElementById("clearPick");
+ banner.hidden=false;btn.hidden=false;
+ if(s.chain){
+  S.chain.clear();S.chain.add(s.chain);
+  document.querySelectorAll("#fChain .chip").forEach(b=>b.classList.toggle("on",b.dataset.v===s.chain));
+  banner.textContent=`${CHK[s.chain]} · ${s.name} (${s.d}m) 선택. 이 브랜드 행사 상품만 보여 줍니다.`;
+ }else banner.textContent=`${s.name} (${s.d}m)은 기타 편의점입니다. 4대 브랜드 행사 상품과는 연결되지 않습니다.`;
+ if(activeTab!=="conv")setTab("conv");
+ renderStoreList();render();drawMap(false);
+}
+function renderStoreList(){
+ const el=document.getElementById("storeList");
+ if(!allStores.length){el.innerHTML=LAST?"<li>반경 안에 매장이 없어요. 반경을 넓혀 보세요.</li>":"";return}
+ let list=allStores.slice(0,15);
+ if(selectedStore&&!list.some(s=>samePlace(s,selectedStore)))list=[selectedStore,...list].slice(0,15);
+ el.innerHTML=list.map(s=>{
+  const sel=samePlace(selectedStore,s);
+  const badge=s.chain?`<span class="badge ${s.chain==="7-Eleven"?"b7":s.chain}">${esc(CHK[s.chain])}</span>`:`<span class="badge" style="background:#888">기타</span>`;
+  return `<li><button type="button" class="store-hit${sel?" sel":""}" data-lat="${s.lat}" data-lon="${s.lon}">${badge}${esc(s.name)} · ${s.d}m</button></li>`;
+ }).join("");
+ el.querySelectorAll(".store-hit").forEach((b,i)=>b.onclick=()=>selectStore(list[i]));
+}
 async function getAll(){if(ALL)return ALL;const r=await fetch("stores.json");if(!r.ok)throw new Error("stores.json "+r.status);const j=await r.json();ALL=j.s;return ALL}
 async function liveStores(lat,lon,rad){const q=`[out:json][timeout:10];nwr["shop"="convenience"](around:${rad},${lat},${lon});out center tags;`;
  for(const u of["https://overpass-api.de/api/interpreter","https://overpass.private.coffee/api/interpreter"]){try{const ac=new AbortController(),tm=setTimeout(()=>ac.abort(),8000);const r=await fetch(u,{method:"POST",body:"data="+encodeURIComponent(q),signal:ac.signal});clearTimeout(tm);if(!r.ok)continue;const j=await r.json();
   return j.elements.map(e=>{const t=e.tags||{};return[CHI.indexOf(chainOf(t)),e.lat??e.center?.lat,e.lon??e.center?.lon,t.name||""]})}catch(e){}}return null}
-async function loadStores(lat,lon,label){LAST=[lat,lon,label];const rad=+document.getElementById("radius").value;setMsg("주변 매장 검색 중…");
- let arr=null,src="저장된 OSM 데이터";try{arr=await getAll()}catch(e){arr=await liveStores(lat,lon,rad);src="실시간 OSM"}
- if(!arr){setMsg("매장 데이터를 불러오지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.");stores=[];render();return}
+async function loadStores(lat,lon,label){
+ LAST=[lat,lon,label];selectedStore=null;selectedFood=null;
+ document.getElementById("pickMsg").hidden=true;document.getElementById("clearPick").hidden=true;
+ const rad=+document.getElementById("radius").value;
+ setMsg("주변 매장 검색 중…");
+ allStores=[];stores=[];renderStoreList();drawMap(true);
+ let arr=null,src="저장된 OSM 데이터";
+ try{arr=await getAll()}catch(e){arr=await liveStores(lat,lon,rad);src="실시간 OSM"}
+ if(!arr){setMsg("매장 데이터를 불러오지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.");render();renderFood();return}
  const dl=rad/111000*1.2,dn=dl/Math.cos(lat*Math.PI/180);
- const all=arr.filter(s=>Math.abs(s[1]-lat)<dl&&Math.abs(s[2]-lon)<dn).map(s=>{const c=CHI[s[0]]??null;return{chain:c,name:s[3]||(c?CHK[c]:"편의점"),d:Math.round(hav(lat,lon,s[1],s[2]))}}).filter(s=>s.d<=rad).sort((a,b)=>a.d-b.d);
- stores=all.filter(s=>s.chain);const oth=all.length-stores.length;
+ const all=arr.filter(s=>Math.abs(s[1]-lat)<dl&&Math.abs(s[2]-lon)<dn).map(s=>{const c=CHI[s[0]]??null;return{chain:c,name:s[3]||(c?CHK[c]:"편의점"),lat:s[1],lon:s[2],d:Math.round(hav(lat,lon,s[1],s[2]))}}).filter(s=>s.d<=rad).sort((a,b)=>a.d-b.d||String(a.name).localeCompare(String(b.name)));
+ allStores=all;stores=all.filter(s=>s.chain);const oth=all.length-stores.length;
  setMsg(`${label?label+" · ":""}반경 ${rad}m 안에 4대 편의점 ${stores.length}곳${oth?` (기타 편의점 ${oth}곳)`:""} · ${src} 기준, 일부 누락 가능`);
- document.getElementById("storeList").innerHTML=all.slice(0,15).map(s=>`<li>${s.chain?`<span class="badge ${s.chain=="7-Eleven"?"b7":s.chain}">${CHK[s.chain]}</span>`:`<span class="badge" style="background:#888">기타</span>`}${s.name} · ${s.d}m</li>`).join("")||"<li>반경 안에 매장이 없어요. 반경을 넓혀 보세요.</li>";
- render()}
+ renderStoreList();render();renderFood();drawMap(true);
+}
 document.getElementById("radius").onchange=()=>{if(LAST)loadStores(...LAST)};
 const GEOERR={1:"위치 권한이 거부됐어요. 주소창 왼쪽 자물쇠(ⓘ) → 권한 → 위치를 '허용'으로 바꾸거나, 아래에 주소를 입력하세요.",2:"현재 위치를 확인할 수 없어요(GPS/네트워크 위치 꺼짐). 휴대폰 설정에서 '위치'를 켜거나 주소를 입력하세요.",3:"위치 확인 시간이 초과됐어요. 실내라면 잠시 후 다시 시도하거나 주소를 입력하세요."};
 document.getElementById("geo").onclick=()=>{if(!navigator.geolocation){setMsg("이 브라우저는 위치 기능을 지원하지 않아요. 주소를 입력하세요.");return}
  if(!window.isSecureContext){setMsg("보안(https) 주소에서만 위치를 쓸 수 있어요. https:// 주소로 접속해 주세요.");return}
- setMsg("현재 위치 확인 중… (최대 20초)");const ok=p=>loadStores(p.coords.latitude,p.coords.longitude,`현재 위치(±${Math.round(p.coords.accuracy)}m)`);
+ setMsg("현재 위치 확인 중… (최대 20초)");
+ const ok=p=>{const acc=Math.round(p.coords.accuracy);loadStores(p.coords.latitude,p.coords.longitude,"현재 위치"+(Number.isFinite(acc)&&acc>0?`(±${acc}m)`:""))};
  navigator.geolocation.getCurrentPosition(ok,e=>{if(e.code==1){setMsg(GEOERR[1]);return}setMsg("정밀 위치 실패 → 대략적 위치로 다시 시도 중…");
   navigator.geolocation.getCurrentPosition(ok,e2=>setMsg((GEOERR[e2.code]||"위치 확인 실패")+" (코드 "+e2.code+")"),{enableHighAccuracy:false,timeout:15000,maximumAge:600000})},
  {enableHighAccuracy:true,timeout:8000,maximumAge:60000})};
-async function geocode(v){const tries=[];const q=/서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충|전|경|제주|시|도\s/.test(v)?v:v;
+async function geocode(v){
  const nom=s=>fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=kr&accept-language=ko&limit=1&q="+encodeURIComponent(s)).then(r=>r.ok?r.json():[]).then(j=>j[0]&&[+j[0].lat,+j[0].lon,j[0].display_name.split(",").slice(0,3).join(",")]);
  const pho=s=>fetch("https://photon.komoot.io/api/?limit=1&lat=37.5665&lon=126.978&q="+encodeURIComponent(s)).then(r=>r.ok?r.json():{features:[]}).then(j=>{const f=j.features[0];if(!f)return null;const p=f.properties;return[f.geometry.coordinates[1],f.geometry.coordinates[0],[p.name,p.district,p.city].filter(Boolean).join(", ")]});
  const s2=v.replace(/(로|길)\s*(\d+[가-힣]*길)/,"$1$2").replace(/\s+\d+(-\d+)?\s*$/,"");
@@ -86,19 +258,128 @@ document.getElementById("addrBtn").onclick=async()=>{const v=addr.value.trim();i
  setMsg("주소 찾는 중…");const g=await geocode(v);if(!g){setMsg("주소를 찾지 못했어요. 도로명(예: 아리랑로19길) 또는 동 이름, 역 이름으로 입력하거나 아래 지역을 선택하세요.");return}loadStores(g[0],g[1],"📍 "+g[2])};
 addr.onkeydown=e=>{if(e.key=="Enter")addrBtn.click()};
 document.getElementById("preset").onchange=e=>{const v=e.target.value;if(!v)return;const[a,b]=v.split(",");loadStores(+a,+b,e.target.selectedOptions[0].text)};
-function render(){const q=document.getElementById("q").value.trim(),go=giftOnly.checked,no=nearOnly.checked;const near={};stores.forEach(s=>(near[s.chain]=near[s.chain]||[]).push(s));
+function render(){
+ const q=document.getElementById("q").value.trim(),go=giftOnly.checked,no=nearOnly.checked;const near={};stores.forEach(s=>(near[s.chain]=near[s.chain]||[]).push(s));
  let r=DATA.items.filter(x=>(!S.genre.size||S.genre.has(x.genre))&&(!S.promo.size||S.promo.has(x.promo))&&(!S.chain.size||S.chain.has(x.chain))
   &&(!S.price.size||[...S.price].some(i=>x.price!=null&&x.price>=PRICES[i][1]&&x.price<=PRICES[i][2]))&&(!go||x.gift)&&(!no||near[x.chain])&&(!q||x.name.includes(q)));
- const so=sort.value;r.sort(so=="name"?(a,b)=>a.name.localeCompare(b.name):so=="dist"?(a,b)=>((near[a.chain]||[{d:1e9}])[0].d-(near[b.chain]||[{d:1e9}])[0].d)||(a.price-b.price):(a,b)=>(a.price??1e9)-(b.price??1e9));
+ const so=sort.value;r.sort(so=="name"?(a,b)=>a.name.localeCompare(b.name):so=="dist"?(a,b)=>((near[a.chain]||[{d:1e9}])[0].d-(near[b.chain]||[{d:1e9}])[0].d)||((a.price??1e9)-(b.price??1e9)):(a,b)=>(a.price??1e9)-(b.price??1e9));
  count.textContent=`검색 결과 ${r.length}개`+(r.length>300?" (상위 300개 표시)":"");
- grid.innerHTML=r.slice(0,300).map(x=>{const n=(near[x.chain]||[]).slice(0,3);return`<div class="item" data-chain="${x.chain}" data-genre="${x.genre}" data-promo="${x.promo}" data-price="${x.price}">${x.image?`<img loading="lazy" src="${x.image}" alt="" onerror="this.style.display='none'">`:""}
- <div><span class="badge ${x.chain=="7-Eleven"?"b7":x.chain}">${CHK[x.chain]}</span><span class="badge promo">${x.promo}</span><span style="font-size:12px;color:#777">${x.genre}</span></div>
- <div style="margin:4px 0"><b>${x.name}</b></div><div>${x.price!=null?x.price.toLocaleString()+"원":"가격 정보 없음"}</div>${x.gift?`<div class="gift">🎁 ${x.gift}</div>`:""}
- <div class="near">${n.length?"📍 가까운 매장: "+n.map(s=>`${s.name}(${s.d}m)`).join(", "):(stores.length?"주변에 이 브랜드 매장 없음":"위치 설정 시 주변 매장 표시")}</div></div>`}).join("")}
-function init(){DATA=window.DRINK_DATA||DATA;upd.textContent="행사 데이터 수집: "+(DATA.updated||"-")+" · 전국 공통 행사이며 매장별 재고는 보장되지 않습니다";
-document.getElementById("status").innerHTML=CH.map(c=>{const s=DATA.status[c];return s&&s.ok?`✅ ${CHK[c]} ${s.count}개${s.note?" ("+s.note+")":""}`:`⚠️ ${CHK[c]}: 수집 실패${s&&s.error?" – "+s.error:""}`}).join("<br>")+"<br>※ 증정/굿즈 정보는 공식 페이지에 표기된 경우만 표시됩니다.";
+ grid.innerHTML=r.slice(0,300).map(x=>{
+  let n=(near[x.chain]||[]).slice(0,3);
+  const picked=selectedStore&&selectedStore.chain&&x.chain===selectedStore.chain;
+  if(picked)n=[selectedStore,...n.filter(s=>!samePlace(s,selectedStore))].slice(0,3);
+  const nearHtml=n.length?"📍 가까운 매장: "+n.map(s=>`${samePlace(selectedStore,s)?"<mark>선택</mark> ":""}${esc(s.name)}(${s.d}m)`).join(", "):(stores.length?"주변에 이 브랜드 매장 없음":"위치 설정 시 주변 매장 표시");
+  return `<div class="item${picked?" picked":""}" data-chain="${esc(x.chain)}" data-genre="${esc(x.genre)}" data-promo="${esc(x.promo)}" data-price="${x.price??""}">${x.image?`<img loading="lazy" src="${esc(x.image)}" alt="" onerror="this.style.display='none'">`:""}
+ <div><span class="badge ${x.chain=="7-Eleven"?"b7":x.chain}">${esc(CHK[x.chain]||x.chain)}</span><span class="badge promo">${esc(x.promo)}</span><span style="font-size:12px;color:#777">${esc(x.genre)}</span></div>
+ <div style="margin:4px 0"><b>${esc(x.name)}</b></div><div>${x.price!=null?x.price.toLocaleString()+"원":"가격 정보 없음"}</div>${x.gift?`<div class="gift">🎁 ${esc(x.gift)}</div>`:""}
+ <div class="near">${nearHtml}</div></div>`}).join("")}
+function imgSrc(url){
+ if(/commons\.wikimedia\.org\/wiki\/Special:FilePath\//.test(url)&&!/[?&]width=/.test(url))return url+(url.includes("?")?"&":"?")+"width=320";
+ return url}
+function photoBlock(s){
+ if(s.kind===1&&s.img)return `<div class="photo"><img alt="${esc(s.name)} 매장 사진" src="${esc(imgSrc(s.img))}"><p class="photo-cap">이 식당의 OSM·위키미디어 사진</p></div>`;
+ if(s.kind===2&&s.img){
+  const logo=/logo|wordmark|slogan|symbol|brandmark|\.svg/i.test(s.img);
+  const cap=logo?"브랜드 대표 이미지 · 이 매장 사진이 아님":"다른 지점·브랜드 사진 · 이 매장 사진이 아님";
+  return `<div class="photo brand"><img alt="${esc(s.name)} ${esc(cap)}" src="${esc(imgSrc(s.img))}"><p class="photo-cap">${cap}</p></div>`;
+ }
+ if(s.kind===3&&s.img)return `<div class="photo generic"><img alt="${esc(s.name)} 일반 음식 대표 이미지, 이 매장 사진 아님" src="${esc(imgSrc(s.img))}"><p class="photo-cap">일반 음식 대표 이미지 · 이 매장 사진이 아님</p></div>`;
+ return `<div class="photo none"><p class="photo-cap">등록된 매장 사진 없음</p></div>`;
+}
+function bindFood(){
+ document.querySelectorAll(".food-pick").forEach(b=>b.onclick=()=>{const id=+b.closest("[data-food]").dataset.food;const row=foodShown.find(x=>x.id===id);if(row)selectFood(row)});
+ document.querySelectorAll("#foodList img").forEach(img=>{img.onerror=()=>{const cap=img.parentElement.querySelector(".photo-cap");img.remove();if(cap)cap.textContent="사진을 불러오지 못했어요 · 매장 사진으로 대신 넣지 않았습니다"}});
+}
+function renderFood(){
+ const status=document.getElementById("foodStatus"),list=document.getElementById("foodList"),retry=document.getElementById("foodRetry");
+ retry.hidden=foodState!=="error";
+ if(foodState==="loading"){status.textContent="혼밥 식당 목록을 불러오는 중…";list.innerHTML="";foodShown=[];return}
+ if(foodState==="error"){status.textContent=foodErr||"식당 데이터를 불러오지 못했어요.";list.innerHTML="";foodShown=[];return}
+ if(!FOOD){status.textContent="식당 목록을 준비하는 중…";return}
+ if(FOOD.updated)document.getElementById("honbapNote").dataset.updated=FOOD.updated;
+ if(!LAST){status.textContent="위치를 설정하면 반경 안 혼밥 추정 식당을 가까운 순으로 보여 줍니다.";list.innerHTML="";foodShown=[];return}
+ const lat=LAST[0],lon=LAST[1],rad=+document.getElementById("radius").value;
+ const dl=rad/111000*1.2,dn=dl/Math.cos(lat*Math.PI/180);
+ const cats=FOOD.cats||[];
+ foodRows=[];
+ for(let i=0;i<FOOD.r.length;i++){
+  const s=FOOD.r[i];
+  if(Math.abs(s[0]-lat)>=dl||Math.abs(s[1]-lon)>=dn)continue;
+  const d=Math.round(hav(lat,lon,s[0],s[1]));
+  if(d>rad)continue;
+  foodRows.push({id:i,lat:s[0],lon:s[1],cat:cats[s[2]]||"기타",name:s[3],img:s[4]||"",kind:s[5]||0,d});
+ }
+ foodRows.sort((a,b)=>a.d-b.d||a.name.localeCompare(b.name,"ko"));
+ if(selectedFood&&!foodRows.some(s=>s.id===selectedFood.id))selectedFood=null;
+ foodShown=foodRows.slice(0,80);
+ const where=LAST[2]?LAST[2]+" · ":"";
+ status.textContent=foodRows.length
+  ?`${where}반경 ${rad}m · 혼밥 추정 ${foodRows.length}곳${foodRows.length>80?" · 가까운 80곳 표시":""} · 자료 ${FOOD.updated||"-"} · ${FOOD.scope||""}`
+  :`${where}반경 ${rad}m 안에 조건에 맞는 식당이 없어요. 반경을 넓혀 보세요.`;
+ list.innerHTML=foodShown.map(s=>{
+  const on=selectedFood&&selectedFood.id===s.id;
+  const href=`https://www.openstreetmap.org/?mlat=${s.lat}&mlon=${s.lon}#map=18/${s.lat}/${s.lon}`;
+  return `<article class="food-card${on?" on":""}" data-food="${s.id}" data-kind="${s.kind}"${on?' aria-current="true"':""}>${photoBlock(s)}<div><button type="button" class="food-pick">${esc(s.name)}</button><p class="meta"><span class="cat">${esc(s.cat)}</span> · <span class="dist">${s.d}m</span></p><p class="est">혼밥 가능 추정 · 업종·요리 기준, 확인된 사실 아님</p><a class="maplink" href="${href}" target="_blank" rel="noopener" aria-label="지도에서 보기: ${esc(s.name)}">지도에서 보기</a></div></article>`;
+ }).join("");
+ bindFood();
+}
+let foodRows=[];
+function selectFood(s){
+ selectedFood=s;
+ renderFood();
+ drawMap(false);
+ const el=document.querySelector(`[data-food="${s.id}"]`);
+ if(el)el.scrollIntoView({block:"nearest"});
+}
+async function ensureFood(){
+ if(FOOD||foodState==="loading")return;
+ foodState="loading";foodErr="";renderFood();
+ try{
+  const r=await fetch("restaurants.json");
+  if(!r.ok)throw new Error("restaurants.json "+r.status);
+  const j=await r.json();
+  if(!j||!Array.isArray(j.r))throw new Error("형식");
+  FOOD=j;foodState="ready";
+ }catch(e){FOOD=null;foodState="error";foodErr="식당 데이터를 불러오지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요."}
+ renderFood();
+ if(map&&activeTab==="food")drawMap(true);
+}
+document.getElementById("foodRetry").onclick=()=>{foodState="idle";FOOD=null;ensureFood()};
+function setTab(name){
+ activeTab=name==="food"?"food":"conv";
+ const conv=activeTab==="conv";
+ const tabC=document.getElementById("tab-conv"),tabF=document.getElementById("tab-food");
+ tabC.setAttribute("aria-selected",conv?"true":"false");
+ tabF.setAttribute("aria-selected",conv?"false":"true");
+ tabC.tabIndex=conv?0:-1;tabF.tabIndex=conv?-1:0;
+ document.getElementById("panel-conv").hidden=!conv;
+ document.getElementById("panel-food").hidden=conv;
+ if(!conv)ensureFood();
+ renderFood();
+ drawMap(true);
+}
+document.getElementById("tab-conv").onclick=()=>setTab("conv");
+document.getElementById("tab-food").onclick=()=>setTab("food");
+document.querySelector("[role=tablist]").addEventListener("keydown",e=>{
+ const tabs=[...document.querySelectorAll("[role=tab]")];
+ let i=tabs.findIndex(t=>t.getAttribute("aria-selected")==="true");
+ if(e.key==="ArrowRight")i=(i+1)%tabs.length;
+ else if(e.key==="ArrowLeft")i=(i-1+tabs.length)%tabs.length;
+ else if(e.key==="Home")i=0;
+ else if(e.key==="End")i=tabs.length-1;
+ else return;
+ e.preventDefault();tabs[i].focus();setTab(tabs[i].id==="tab-food"?"food":"conv");
+});
+function init(){
+ DATA=window.DRINK_DATA||DATA;
+ upd.textContent="행사 데이터 수집: "+(DATA.updated||"-")+" · 전국 공통 행사이며 매장별 재고는 보장되지 않습니다";
+ document.getElementById("status").innerHTML=CH.map(c=>{const s=DATA.status[c];return s&&s.ok?`✅ ${CHK[c]} ${s.count}개${s.note?" ("+s.note+")":""}`:`⚠️ ${CHK[c]}: 수집 실패${s&&s.error?" – "+esc(s.error):""}`}).join("<br>")+"<br>※ 증정/굿즈 정보는 공식 페이지에 표기된 경우만 표시됩니다.";
  chips("fGenre",GENRES,"genre");chips("fPrice",PRICES,"price",p=>p[0]);chips("fPromo",PROMOS,"promo");chips("fChain",CH,"chain",c=>CHK[c]);
- resetBtn.onclick=()=>{Object.values(S).forEach(s=>s.clear());document.querySelectorAll(".chip.on").forEach(c=>c.classList.remove("on"));q.value="";giftOnly.checked=false;nearOnly.checked=false;sort.selectedIndex=0;render()};
- [giftOnly,nearOnly,sort].forEach(e=>e.onchange=render);q.oninput=render;render()}
+ resetBtn.onclick=()=>{clearStorePick();Object.values(S).forEach(s=>s.clear());document.querySelectorAll(".chip.on").forEach(c=>c.classList.remove("on"));q.value="";giftOnly.checked=false;nearOnly.checked=false;sort.selectedIndex=0;render()};
+ document.getElementById("clearPick").onclick=()=>{const had=selectedStore&&selectedStore.chain;clearStorePick();if(had){S.chain.clear();document.querySelectorAll("#fChain .chip").forEach(b=>b.classList.remove("on"));render()}};
+ [giftOnly,nearOnly,sort].forEach(e=>e.onchange=render);q.oninput=render;render();ensureFood()}
+initMap();
 if(!window.DRINK_DATA){fetch("data.json").then(r=>r.json()).then(d=>{window.DRINK_DATA=d;init()}).catch(()=>init())}else init();
-</script></body></html>
+</script>
+</body>
+</html>
