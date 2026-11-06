@@ -41,7 +41,7 @@ input[type=text]{height:34px;font-size:16px}label{display:inline-flex;align-item
 .pin.me{width:14px;height:14px;margin:2px;box-shadow:0 0 0 2px #fff,0 0 0 4px #2b59c3}
 .pin.sel{box-shadow:0 0 0 2px #fff,0 0 0 4px #e33}
 .tabs{display:flex;gap:8px;margin:0 0 10px}
-.tabs [role=tab]{flex:1;min-height:44px;border-radius:10px;border:1px solid #c5cde0;background:#fff;font-size:16px;font-weight:700;cursor:pointer}
+.tabs [role=tab]{flex:1;min-height:44px;border-radius:10px;border:1px solid #c5cde0;background:#fff;font-size:15px;font-weight:700;cursor:pointer;padding:6px 4px}
 .tabs [role=tab][aria-selected="true"]{background:#2b59c3;color:#fff;border-color:#2b59c3}
 .pick{background:#e8efff;border-left:4px solid #2b59c3;padding:8px;font-size:14px;margin:8px 0}
 .store-hit{display:flex;align-items:center;flex-wrap:wrap;gap:4px;width:100%;text-align:left;background:#fff;border:1px solid #e6e8ee;border-radius:8px;padding:6px 8px;min-height:44px;font-size:14px;cursor:pointer}
@@ -56,6 +56,14 @@ input[type=text]{height:34px;font-size:16px}label{display:inline-flex;align-item
 .meta{margin:0;font-size:14px;color:#333}
 .est{display:inline-block;margin:4px 0;font-size:12px;color:#7a4b00;background:#fff6e8;padding:3px 6px;border-radius:6px}
 .maplink{display:inline-flex;align-items:center;min-height:44px;font-size:14px}
+.menu-box{border:1px solid #e6e8ee;border-radius:8px;padding:4px 8px;margin-top:6px;background:#fafafa}
+.menu-box summary{min-height:44px;display:flex;align-items:center;cursor:pointer;font-weight:700}
+.menu-empty{margin:4px 0;font-size:14px}
+.pair-row{border:2px solid transparent}
+.pair-row.on{border-color:#c2410c;background:#fff8f4}
+.pair-item{background:#fff;border-radius:10px;padding:10px;margin:8px 0;box-shadow:0 1px 3px #0001;font-size:14px}
+.why{font-size:13px;background:#f4f7ff;border-left:4px solid #2b59c3;padding:8px;margin:8px 0}
+.deal-link{margin-top:6px}
 .empty{font-size:14px;color:#444}
 mark{background:#ffe08a;padding:0 3px;border-radius:3px}
 @media(max-width:600px){
@@ -72,7 +80,7 @@ main{padding:8px}
 </head>
 <body>
 <header>
-<h1>🥤 내 주변 편의점 음료 행사 찾기</h1>
+<h1>🥤 내 주변 혼밥 · 편의점 음료</h1>
 <small id="upd"></small>
 </header>
 <main>
@@ -91,11 +99,20 @@ main{padding:8px}
 <p id="mapMsg" class="near" role="status"></p>
 <p class="map-attr">지도 © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> 기여자 · 타일 서버 OpenStreetMap</p>
 </div>
-<div class="tabs" role="tablist" aria-label="장소 종류">
-<button type="button" role="tab" id="tab-conv" aria-controls="panel-conv" aria-selected="true" tabindex="0">편의점</button>
-<button type="button" role="tab" id="tab-food" aria-controls="panel-food" aria-selected="false" tabindex="-1">혼밥 식당</button>
+<div class="tabs" role="tablist" aria-label="보는 방식">
+<button type="button" role="tab" id="tab-pair" aria-controls="panel-pair" aria-selected="true" tabindex="0">혼밥+음료</button>
+<button type="button" role="tab" id="tab-conv" aria-controls="panel-conv" aria-selected="false" tabindex="-1">편의점</button>
+<button type="button" role="tab" id="tab-food" aria-controls="panel-food" aria-selected="false" tabindex="-1">식당</button>
 </div>
-<section role="tabpanel" id="panel-conv" aria-labelledby="tab-conv">
+<section role="tabpanel" id="panel-pair" aria-labelledby="tab-pair">
+<div class="card">
+<p class="warn" id="pairNote">식당을 고르면 그 음식 종류에 맞춰 편의점 음료 행사를 보여 줍니다. 같이 고르기 쉬운 조합 규칙이고, 건강 효과나 영양 조언이 아닙니다.</p>
+<p id="pairStatus" class="near" role="status">위치를 정하면 주변 식당을 가까운 순으로 보여 줍니다.</p>
+<div id="pairResult"></div>
+<div id="pairList"></div>
+</div>
+</section>
+<section role="tabpanel" id="panel-conv" aria-labelledby="tab-conv" hidden>
 <div class="card">
 <p id="pickMsg" class="pick" role="status" hidden></p>
 <button class="act" id="clearPick" type="button" hidden>매장 선택 해제</button>
@@ -134,7 +151,7 @@ const PRICES=[["~1,500원",0,1500],["1,500~2,500원",1501,2500],["2,500~4,000원
 const PROMOS=["1+1","2+1","3+1","할인","골라담기","덤증정"];
 const S={genre:new Set(),price:new Set(),promo:new Set(),chain:new Set()};
 let stores=[],DATA={items:[],status:{}},allStores=[],LAST=null,ALL=null;
-let selectedStore=null,selectedFood=null,FOOD=null,foodState="idle",foodErr="",activeTab="conv",foodShown=[];
+let selectedStore=null,selectedFood=null,FOOD=null,foodState="idle",foodErr="",activeTab="pair",foodShown=[];
 let map,storeLayer,foodLayer,meLayer;
 const CHI=["CU","GS25","7-Eleven","emart24",null];
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
@@ -233,12 +250,12 @@ async function loadStores(lat,lon,label){
  allStores=[];stores=[];renderStoreList();drawMap(true);
  let arr=null,src="저장된 OSM 데이터";
  try{arr=await getAll()}catch(e){arr=await liveStores(lat,lon,rad);src="실시간 OSM"}
- if(!arr){setMsg("매장 데이터를 불러오지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.");render();renderFood();return}
+ if(!arr){setMsg("매장 데이터를 불러오지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.");render();renderFood();renderPair();return}
  const dl=rad/111000*1.2,dn=dl/Math.cos(lat*Math.PI/180);
  const all=arr.filter(s=>Math.abs(s[1]-lat)<dl&&Math.abs(s[2]-lon)<dn).map(s=>{const c=CHI[s[0]]??null;return{chain:c,name:s[3]||(c?CHK[c]:"편의점"),lat:s[1],lon:s[2],d:Math.round(hav(lat,lon,s[1],s[2]))}}).filter(s=>s.d<=rad).sort((a,b)=>a.d-b.d||String(a.name).localeCompare(String(b.name)));
  allStores=all;stores=all.filter(s=>s.chain);const oth=all.length-stores.length;
  setMsg(`${label?label+" · ":""}반경 ${rad}m 안에 4대 편의점 ${stores.length}곳${oth?` (기타 편의점 ${oth}곳)`:""} · ${src} 기준, 일부 누락 가능`);
- renderStoreList();render();renderFood();drawMap(true);
+ renderStoreList();render();renderFood();renderPair();drawMap(true);
 }
 document.getElementById("radius").onchange=()=>{if(LAST)loadStores(...LAST)};
 const GEOERR={1:"위치 권한이 거부됐어요. 주소창 왼쪽 자물쇠(ⓘ) → 권한 → 위치를 '허용'으로 바꾸거나, 아래에 주소를 입력하세요.",2:"현재 위치를 확인할 수 없어요(GPS/네트워크 위치 꺼짐). 휴대폰 설정에서 '위치'를 켜거나 주소를 입력하세요.",3:"위치 확인 시간이 초과됐어요. 실내라면 잠시 후 다시 시도하거나 주소를 입력하세요."};
@@ -286,8 +303,91 @@ function photoBlock(s){
  if(s.kind===3&&s.img)return `<div class="photo generic"><img alt="${esc(s.name)} 일반 음식 대표 이미지, 이 매장 사진 아님" src="${esc(imgSrc(s.img))}"><p class="photo-cap">일반 음식 대표 이미지 · 이 매장 사진이 아님</p></div>`;
  return `<div class="photo none"><p class="photo-cap">등록된 매장 사진 없음</p></div>`;
 }
+function menuDetails(){
+ return `<details class="menu-box"><summary>메뉴·가격</summary><p class="menu-empty">등록된 메뉴·가격 정보 없음</p><p class="near">OpenStreetMap 대한민국 추출본(2026-11-05)의 혼밥 추정 식당에는 메뉴·가격 태그가 없습니다. 2026-11-06에 확인한 맥도날드 코리아 공개 메뉴 목록도 이름·열량만 있고 가격은 없어, 브랜드 대표 가격을 만들지 않았습니다.</p></details>`;
+}
+const PAIR_RULES=[
+ {id:"spicy",test:s=>/떡볶이|마라|짬뽕|매운|엽기|불닭|매콤|고추|불맛|주꾸미|낙지/.test(s.name),genres:["우유/두유","차","생수"],why:"상호에 매운 음식이 보여 우유·차·생수 행사를 골랐습니다. 매운맛을 낮춘다는 뜻이 아니라, 같이 고르기 쉬운 조합입니다."},
+ {id:"burger",test:s=>s.cat==="버거/샌드위치"||/버거|햄버거|롯데리아|맘스터치|맥도날|버거킹|노브랜드/.test(s.name),genres:["탄산","커피"],why:"버거·샌드위치에는 탄산·커피 행사를 맞췄습니다. 세트처럼 자주 같이 시키는 조합이고, 건강 조언이 아닙니다."},
+ {id:"noodle",test:s=>s.cat==="면/라면",genres:["생수","차","우유/두유"],why:"면·라면에는 생수·차·우유 행사를 골랐습니다. 국물과 같이 두기 쉬운 조합입니다."},
+ {id:"bunsik",test:s=>s.cat==="분식/김밥",genres:["우유/두유","차","탄산"],why:"분식·김밥에는 우유·차·탄산 행사를 골랐습니다."},
+ {id:"sushi",test:s=>s.cat==="초밥",genres:["차","생수","탄산"],why:"초밥에는 차·생수·탄산 행사를 골랐습니다."},
+ {id:"rice",test:s=>s.cat==="덮밥/돈가스"||s.cat==="한그릇/백반",genres:["탄산","차","생수"],why:"밥·국밥류에는 탄산·차·생수 행사를 맞췄습니다."},
+ {id:"fast",test:s=>s.cat==="패스트푸드"||s.cat==="푸드코트",genres:["탄산","커피","주스"],why:"패스트푸드·푸드코트에는 탄산·커피·주스 행사를 맞췄습니다."},
+ {id:"light",test:s=>s.cat==="간편식",genres:["커피","생수","차"],why:"간편식에는 커피·생수·차 행사를 맞췄습니다."}
+];
+function ruleFor(s){return PAIR_RULES.find(r=>r.test(s))||{id:"default",genres:["생수","차","탄산"],why:"업종을 더 좁히지 못해 생수·차·탄산을 기본으로 골랐습니다. 건강 효과가 아닙니다."}}
+function nearestChain(chain){return stores.filter(s=>s.chain===chain)}
+function pairDrinks(rule){
+ const picked=[];
+ for(const g of rule.genres){
+  const rows=DATA.items.filter(x=>x.genre===g).slice().sort((a,b)=>{
+   const an=nearestChain(a.chain).length?0:1,bn=nearestChain(b.chain).length?0:1;
+   if(an!==bn)return an-bn;
+   return (a.price??1e9)-(b.price??1e9);
+  });
+  const seen=new Set();
+  for(const x of rows){
+   if(picked.filter(p=>p.genre===g).length>=2)break;
+   const key=x.chain+"\0"+x.name+"\0"+x.promo;
+   if(seen.has(key))continue;
+   seen.add(key);
+   picked.push(x);
+  }
+ }
+ return picked.slice(0,6);
+}
+function showBrandDeals(chain){
+ S.genre.clear();S.price.clear();S.promo.clear();
+ if(document.getElementById("q"))q.value="";
+ giftOnly.checked=false;nearOnly.checked=false;
+ document.querySelectorAll("#fGenre .chip.on,#fPrice .chip.on,#fPromo .chip.on").forEach(c=>c.classList.remove("on"));
+ const near=nearestChain(chain);
+ if(near.length)selectStore(near[0]);
+ else{
+  S.chain.clear();S.chain.add(chain);
+  document.querySelectorAll("#fChain .chip").forEach(c=>c.classList.toggle("on",c.dataset.v===chain));
+  setTab("conv");render();
+ }
+}
+function renderPair(){
+ const status=document.getElementById("pairStatus"),list=document.getElementById("pairList"),result=document.getElementById("pairResult");
+ if(!status)return;
+ if(foodState==="loading"){status.textContent="혼밥 식당 목록을 불러오는 중…";list.innerHTML="";result.innerHTML="";return}
+ if(foodState==="error"){status.textContent=foodErr||"식당 데이터를 불러오지 못했어요.";list.innerHTML="";result.innerHTML="";return}
+ if(!FOOD){status.textContent="식당 목록을 준비하는 중…";return}
+ if(!LAST){status.textContent="위치를 정하면 주변 식당과 맞춰 마실 음료를 보여 줍니다.";list.innerHTML="";result.innerHTML="";return}
+ const rows=foodRows.slice(0,15);
+ let show=rows;
+ if(selectedFood&&!show.some(s=>s.id===selectedFood.id))show=[selectedFood,...show].slice(0,15);
+ const where=LAST[2]?LAST[2]+" · ":"";
+ status.textContent=foodRows.length?`${where}가까운 식당 ${Math.min(15,foodRows.length)}곳 · 하나를 고르면 음료 행사가 나옵니다.`:"이 반경에는 혼밥 추정 식당이 없어요. 반경을 넓혀 보세요.";
+ if(!selectedFood)result.innerHTML=`<p class="near">식당을 누르면 그 종류에 맞춘 편의점 음료 행사를 보여 줍니다.</p>`;
+ else{
+  const rule=ruleFor(selectedFood);
+  const drinks=pairDrinks(rule);
+  result.innerHTML=`<div class="why" id="pairWhy"><b>${esc(selectedFood.name)}</b> · ${esc(selectedFood.cat)} · ${selectedFood.d}m<br>${esc(rule.why)}</div>`+
+   (drinks.length?drinks.map(x=>{
+    const n=nearestChain(x.chain);
+    const nearHtml=n.length?`가까운 매장 ${esc(n[0].name)} · ${n[0].d}m`:(stores.length?"주변에 이 브랜드 매장 없음":"위치를 정하면 가까운 매장 거리가 표시됩니다");
+    return `<article class="pair-item" data-name="${esc(x.name)}" data-chain="${esc(x.chain)}" data-genre="${esc(x.genre)}" data-promo="${esc(x.promo)}" data-price="${x.price??""}">
+     <div><span class="badge ${x.chain==="7-Eleven"?"b7":x.chain}">${esc(CHK[x.chain]||x.chain)}</span><span class="badge promo">${esc(x.promo)}</span><span class="badge" style="background:#555">${esc(x.genre)}</span></div>
+     <div style="margin:4px 0"><b>${esc(x.name)}</b></div>
+     <div>${x.price!=null?x.price.toLocaleString()+"원":"가격 정보 없음"}</div>
+     <div class="near">${nearHtml}</div>
+     <button type="button" class="act deal-link" data-chain="${esc(x.chain)}">${esc(CHK[x.chain]||x.chain)} 행사 보기</button>
+    </article>`;
+   }).join(""):`<p class="empty">이 조합에 맞는 행사 상품이 지금 자료에 없어요.</p>`);
+ }
+ list.innerHTML=show.map(s=>{
+  const on=selectedFood&&selectedFood.id===s.id;
+  return `<article class="pair-row${on?" on":""}" data-food="${s.id}"${on?' aria-current="true"':""}><button type="button" class="food-pick pair-pick">${esc(s.name)}</button><p class="meta"><span class="cat">${esc(s.cat)}</span> · <span class="dist">${s.d}m</span></p><p class="est">혼밥 가능 추정 · 업종·요리 기준, 확인된 사실 아님</p>${menuDetails()}</article>`;
+ }).join("");
+ list.querySelectorAll(".pair-pick").forEach(b=>b.onclick=()=>{const id=+b.closest("[data-food]").dataset.food;const row=foodRows.find(x=>x.id===id)||(selectedFood&&selectedFood.id===id?selectedFood:null);if(row)selectFood(row)});
+ result.querySelectorAll(".deal-link").forEach(b=>b.onclick=()=>showBrandDeals(b.dataset.chain));
+}
 function bindFood(){
- document.querySelectorAll(".food-pick").forEach(b=>b.onclick=()=>{const id=+b.closest("[data-food]").dataset.food;const row=foodShown.find(x=>x.id===id);if(row)selectFood(row)});
+ document.querySelectorAll("#foodList .food-pick").forEach(b=>b.onclick=()=>{const id=+b.closest("[data-food]").dataset.food;const row=foodShown.find(x=>x.id===id);if(row)selectFood(row)});
  document.querySelectorAll("#foodList img").forEach(img=>{img.onerror=()=>{const cap=img.parentElement.querySelector(".photo-cap");img.remove();if(cap)cap.textContent="사진을 불러오지 못했어요 · 매장 사진으로 대신 넣지 않았습니다"}});
 }
 function renderFood(){
@@ -319,7 +419,7 @@ function renderFood(){
  list.innerHTML=foodShown.map(s=>{
   const on=selectedFood&&selectedFood.id===s.id;
   const href=`https://www.openstreetmap.org/?mlat=${s.lat}&mlon=${s.lon}#map=18/${s.lat}/${s.lon}`;
-  return `<article class="food-card${on?" on":""}" data-food="${s.id}" data-kind="${s.kind}"${on?' aria-current="true"':""}>${photoBlock(s)}<div><button type="button" class="food-pick">${esc(s.name)}</button><p class="meta"><span class="cat">${esc(s.cat)}</span> · <span class="dist">${s.d}m</span></p><p class="est">혼밥 가능 추정 · 업종·요리 기준, 확인된 사실 아님</p><a class="maplink" href="${href}" target="_blank" rel="noopener" aria-label="지도에서 보기: ${esc(s.name)}">지도에서 보기</a></div></article>`;
+  return `<article class="food-card${on?" on":""}" data-food="${s.id}" data-kind="${s.kind}"${on?' aria-current="true"':""}>${photoBlock(s)}<div><button type="button" class="food-pick">${esc(s.name)}</button><p class="meta"><span class="cat">${esc(s.cat)}</span> · <span class="dist">${s.d}m</span></p><p class="est">혼밥 가능 추정 · 업종·요리 기준, 확인된 사실 아님</p>${menuDetails()}<a class="maplink" href="${href}" target="_blank" rel="noopener" aria-label="지도에서 보기: ${esc(s.name)}">지도에서 보기</a></div></article>`;
  }).join("");
  bindFood();
 }
@@ -327,13 +427,19 @@ let foodRows=[];
 function selectFood(s){
  selectedFood=s;
  renderFood();
+ renderPair();
  drawMap(false);
- const el=document.querySelector(`[data-food="${s.id}"]`);
- if(el)el.scrollIntoView({block:"nearest"});
+ if(activeTab==="pair"){
+  const box=document.getElementById("pairResult");
+  if(box)box.scrollIntoView({block:"nearest"});
+ }else{
+  const el=document.querySelector(`#foodList [data-food="${s.id}"]`);
+  if(el)el.scrollIntoView({block:"nearest"});
+ }
 }
 async function ensureFood(){
  if(FOOD||foodState==="loading")return;
- foodState="loading";foodErr="";renderFood();
+ foodState="loading";foodErr="";renderFood();renderPair();
  try{
   const r=await fetch("restaurants.json");
   if(!r.ok)throw new Error("restaurants.json "+r.status);
@@ -341,23 +447,24 @@ async function ensureFood(){
   if(!j||!Array.isArray(j.r))throw new Error("형식");
   FOOD=j;foodState="ready";
  }catch(e){FOOD=null;foodState="error";foodErr="식당 데이터를 불러오지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요."}
- renderFood();
- if(map&&activeTab==="food")drawMap(true);
+ renderFood();renderPair();
+ if(map&&activeTab!=="conv")drawMap(false);
 }
 document.getElementById("foodRetry").onclick=()=>{foodState="idle";FOOD=null;ensureFood()};
 function setTab(name){
- activeTab=name==="food"?"food":"conv";
- const conv=activeTab==="conv";
- const tabC=document.getElementById("tab-conv"),tabF=document.getElementById("tab-food");
- tabC.setAttribute("aria-selected",conv?"true":"false");
- tabF.setAttribute("aria-selected",conv?"false":"true");
- tabC.tabIndex=conv?0:-1;tabF.tabIndex=conv?-1:0;
- document.getElementById("panel-conv").hidden=!conv;
- document.getElementById("panel-food").hidden=conv;
- if(!conv)ensureFood();
- renderFood();
- drawMap(true);
+ if(name!=="pair"&&name!=="conv"&&name!=="food")name="pair";
+ activeTab=name;
+ for(const key of ["pair","conv","food"]){
+  const tab=document.getElementById("tab-"+key);
+  const on=key===name;
+  tab.setAttribute("aria-selected",on?"true":"false");
+  tab.tabIndex=on?0:-1;
+  document.getElementById(tab.getAttribute("aria-controls")).hidden=!on;
+ }
+ if(name!=="conv")ensureFood();
+ renderFood();renderPair();drawMap(true);
 }
+document.getElementById("tab-pair").onclick=()=>setTab("pair");
 document.getElementById("tab-conv").onclick=()=>setTab("conv");
 document.getElementById("tab-food").onclick=()=>setTab("food");
 document.querySelector("[role=tablist]").addEventListener("keydown",e=>{
@@ -368,7 +475,9 @@ document.querySelector("[role=tablist]").addEventListener("keydown",e=>{
  else if(e.key==="Home")i=0;
  else if(e.key==="End")i=tabs.length-1;
  else return;
- e.preventDefault();tabs[i].focus();setTab(tabs[i].id==="tab-food"?"food":"conv");
+ e.preventDefault();tabs[i].focus();
+ const id=tabs[i].id;
+ setTab(id==="tab-conv"?"conv":id==="tab-food"?"food":"pair");
 });
 function init(){
  DATA=window.DRINK_DATA||DATA;

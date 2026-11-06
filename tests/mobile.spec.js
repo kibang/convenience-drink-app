@@ -37,7 +37,7 @@ async function noOverlap(page) {
   expect(box.map.w).toBeGreaterThan(300);
   expect(box.map.w).toBeLessThanOrEqual(box.cw + 1);
   const spill = await page.evaluate(() =>
-    [...document.querySelectorAll(".food-card, .item, .chip, .tabs button, input, select, .maplink, .store-hit")].some((el) => {
+    [...document.querySelectorAll(".food-card, .pair-row, .pair-item, .item, .chip, .tabs button, input, select, .maplink, .store-hit, .menu-box")].some((el) => {
       const r = el.getBoundingClientRect();
       return r.width > 0 && r.height > 0 && (r.right > window.innerWidth + 1 || r.left < -1);
     })
@@ -47,17 +47,56 @@ async function noOverlap(page) {
 
 async function useHere(page) {
   await page.goto("/");
+  await expect(page.getByRole("tab", { name: "혼밥+음료" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: "편의점" })).toHaveAttribute("aria-selected", "false");
+  await expect(page.getByRole("tab", { name: "식당" })).toHaveAttribute("aria-selected", "false");
   await page.getByRole("button", { name: "현재 위치 사용" }).click();
   await expect(page.locator("#locMsg")).toContainText("반경");
   await expect(page.locator(".pin.me")).toBeVisible();
-  await expect(page.locator(".store-pin").first()).toBeVisible();
+  await expect(page.locator(".food-pin").first()).toBeVisible();
+  await expect(page.locator(".store-pin")).toHaveCount(0);
   await expect(page.locator(".leaflet-control-attribution")).toContainText("OpenStreetMap");
   await expect(page.locator(".map-attr a")).toHaveAttribute("href", /openstreetmap\.org\/copyright/);
 }
 
+async function expectTruthfulPairs(page) {
+  await expect(page.locator("#pairWhy")).toBeVisible();
+  await expect(page.locator("#pairNote")).toContainText("건강");
+  const rows = await page.locator(".pair-item").evaluateAll((els) =>
+    els.map((el) => ({
+      name: el.dataset.name,
+      chain: el.dataset.chain,
+      genre: el.dataset.genre,
+      promo: el.dataset.promo,
+      price: el.dataset.price,
+      text: el.innerText,
+    }))
+  );
+  expect(rows.length).toBeGreaterThan(0);
+  const data = await page.evaluate(() => window.DRINK_DATA.items);
+  for (const row of rows) {
+    const hit = data.find(
+      (x) => x.name === row.name && x.chain === row.chain && String(x.price) === row.price && x.promo === row.promo && x.genre === row.genre
+    );
+    expect(hit, row.name).toBeTruthy();
+    expect(row.text).toContain(row.promo);
+    expect(row.text).toContain(row.genre);
+    if (row.price) expect(row.text.replaceAll(",", "")).toContain(row.price);
+    expect(row.text).toMatch(/가까운 매장|매장 없음|거리가 표시/);
+  }
+}
+
+async function expectNoMenuPrices(page, root) {
+  const box = page.locator(root).locator("details.menu-box").first();
+  await box.locator("summary").click();
+  await expect(box).toContainText("등록된 메뉴·가격 정보 없음");
+  const text = await box.innerText();
+  expect(text).not.toMatch(/\d{1,3},\d{3}\s*원/);
+}
+
 async function photoAudit(page) {
   await page.waitForFunction(() => [...document.querySelectorAll(".food-card img")].every((img) => img.complete), null, { timeout: 20000 });
-  const cards = await page.locator(".food-card").evaluateAll((els) =>
+  const cards = await page.locator("#foodList .food-card").evaluateAll((els) =>
     els.map((el) => ({
       kind: el.dataset.kind,
       cap: el.querySelector(".photo-cap")?.textContent || "",
@@ -82,11 +121,11 @@ async function photoAudit(page) {
   }
   expect(cards.some((c) => c.kind === "0")).toBeTruthy();
   expect(cards.some((c) => c.kind === "2" || c.kind === "1")).toBeTruthy();
-  const dists = (await page.locator(".food-card .dist").allTextContents()).map((t) => parseInt(t, 10));
+  const dists = (await page.locator("#foodList .food-card .dist").allTextContents()).map((t) => parseInt(t, 10));
   const sorted = [...dists].sort((a, b) => a - b);
   expect(dists).toEqual(sorted);
   for (const d of dists) expect(d).toBeLessThanOrEqual(1000);
-  const href = await page.locator(".maplink").first().getAttribute("href");
+  const href = await page.locator("#foodList .maplink").first().getAttribute("href");
   expect(href).toContain("openstreetmap.org");
   expect(href).toContain("mlat=");
 }
@@ -98,10 +137,33 @@ test.beforeAll(() => {
 test.describe("서울시청", () => {
   test.use({ geolocation: CITY_HALL, permissions: ["geolocation"] });
 
-  test("지도, 편의점 필터, 혼밥 탭", async ({ page }) => {
+  test("맞춤 음료, 지도, 편의점 필터, 식당 탭", async ({ page }) => {
     const errors = attach(page);
     await useHere(page);
+    await expect(page.locator(".pair-pick").first()).toBeVisible();
     await noOverlap(page);
+    await page.screenshot({ path: `${ART}/mobile_cityhall_pair_default.png` });
+
+    await page.locator(".pair-pick").first().click();
+    await expectTruthfulPairs(page);
+    await expect(page.locator(".pair-item .near").first()).toContainText(/\d+m|매장/);
+    await noOverlap(page);
+    await page.screenshot({ path: `${ART}/mobile_cityhall_pair_drinks.png` });
+    await expectNoMenuPrices(page, "#pairList");
+    await page.locator("#pairList details.menu-box").first().screenshot({ path: `${ART}/mobile_cityhall_menu_empty.png` });
+
+    const deal = page.locator(".deal-link").first();
+    const chain = await deal.getAttribute("data-chain");
+    await deal.click();
+    await expect(page.getByRole("tab", { name: "편의점" })).toHaveAttribute("aria-selected", "true");
+    await expect(page.locator("#pickMsg")).toContainText("행사");
+    const dealt = await page.locator(".item").evaluateAll((els) => els.map((e) => e.dataset.chain));
+    expect(dealt.length).toBeGreaterThan(0);
+    expect(dealt.every((c) => c === chain)).toBeTruthy();
+    await page.getByRole("button", { name: "매장 선택 해제" }).click();
+    await page.getByRole("button", { name: "초기화" }).click();
+
+    await expect(page.locator(".store-pin").first()).toBeVisible();
     await page.screenshot({ path: `${ART}/mobile_cityhall_convenience_map.png` });
 
     const before = await page.locator(".store-pin").count();
@@ -146,8 +208,8 @@ test.describe("서울시청", () => {
     await expect(page.locator("#pickMsg")).toBeHidden();
     await expect(page.locator("#fChain .chip.on")).toHaveCount(0);
 
-    await page.getByRole("tab", { name: "혼밥 식당" }).click();
-    await expect(page.getByRole("tab", { name: "혼밥 식당" })).toHaveAttribute("aria-selected", "true");
+    await page.getByRole("tab", { name: "식당", exact: true }).click();
+    await expect(page.getByRole("tab", { name: "식당", exact: true })).toHaveAttribute("aria-selected", "true");
     await expect(page.getByRole("tab", { name: "편의점" })).toHaveAttribute("aria-selected", "false");
     await expect(page.locator("#honbapNote")).toContainText("추정");
     await expect(page.locator(".food-card").first()).toBeVisible();
@@ -156,6 +218,7 @@ test.describe("서울시청", () => {
     await expect(page.locator(".pin.me")).toBeVisible();
     await photoAudit(page);
     await noOverlap(page);
+    await expectNoMenuPrices(page, "#foodList");
     await page.screenshot({ path: `${ART}/mobile_cityhall_restaurants.png` });
     const brand = page.locator('.food-card[data-kind="2"]').first();
     await brand.scrollIntoViewIfNeeded();
@@ -171,11 +234,11 @@ test.describe("서울시청", () => {
     await foodPin.click();
     await expect(page.locator(".food-card.on")).toBeVisible();
 
-    await page.getByRole("tab", { name: "혼밥 식당" }).focus();
+    await page.getByRole("tab", { name: "식당", exact: true }).focus();
     await page.keyboard.press("ArrowLeft");
     await expect(page.getByRole("tab", { name: "편의점" })).toHaveAttribute("aria-selected", "true");
-    await page.keyboard.press("ArrowRight");
-    await expect(page.getByRole("tab", { name: "혼밥 식당" })).toHaveAttribute("aria-selected", "true");
+    await page.keyboard.press("ArrowLeft");
+    await expect(page.getByRole("tab", { name: "혼밥+음료" })).toHaveAttribute("aria-selected", "true");
     expect(errors).toEqual([]);
   });
 });
@@ -187,6 +250,14 @@ test.describe("아리랑로19길", () => {
     const errors = attach(page);
     await useHere(page);
     await expect(page.locator("#locMsg")).toContainText("현재 위치");
+    await page.locator(".pair-pick").first().click();
+    await expectTruthfulPairs(page);
+    await expectNoMenuPrices(page, "#pairList");
+    await noOverlap(page);
+    await page.screenshot({ path: `${ART}/mobile_arirang_pair_drinks.png` });
+
+    await page.getByRole("tab", { name: "편의점" }).click();
+    await expect(page.locator(".store-pin").first()).toBeVisible();
     await noOverlap(page);
     await page.screenshot({ path: `${ART}/mobile_arirang_convenience.png` });
     await page.locator("#fPrice .chip", { hasText: "1,500~2,500원" }).click();
@@ -195,8 +266,9 @@ test.describe("아리랑로19길", () => {
     expect(prices.every((p) => p >= 1501 && p <= 2500)).toBeTruthy();
     await page.getByRole("button", { name: "초기화" }).click();
 
-    await page.getByRole("tab", { name: "혼밥 식당" }).click();
+    await page.getByRole("tab", { name: "식당", exact: true }).click();
     await expect(page.locator(".food-card").first()).toBeVisible();
+    await expectNoMenuPrices(page, "#foodList");
     await expect(page.locator("#foodStatus")).toContainText("혼밥 추정");
     await photoAudit(page);
     await expect(page.locator(".store-pin")).toHaveCount(0);
@@ -219,8 +291,10 @@ test.describe("아리랑로19길", () => {
     await page.fill("#addr", "아리랑로19길");
     await page.getByRole("button", { name: "검색" }).click();
     await expect(page.locator("#locMsg")).toContainText("아리랑로19길");
-    await expect(page.locator(".store-pin").first()).toBeVisible();
-    await page.getByRole("tab", { name: "혼밥 식당" }).click();
+    await expect(page.getByRole("tab", { name: "혼밥+음료" })).toHaveAttribute("aria-selected", "true");
+    await expect(page.locator(".food-pin").first()).toBeVisible();
+    await expect(page.locator(".pair-pick").first()).toBeVisible();
+    await page.getByRole("tab", { name: "식당", exact: true }).click();
     await expect(page.locator(".food-card").first()).toBeVisible();
     await expect(page.locator("#foodStatus")).toContainText("아리랑로19길");
   });
@@ -232,7 +306,7 @@ test("식당 로딩과 오류", async ({ page }) => {
     await route.continue();
   });
   await page.goto("/");
-  await page.getByRole("tab", { name: "혼밥 식당" }).click();
+  await page.getByRole("tab", { name: "식당", exact: true }).click();
   await expect(page.locator("#foodStatus")).toContainText("불러오는 중");
   await page.screenshot({ path: `${ART}/mobile_restaurants_loading.png` });
   await expect(page.locator("#foodStatus")).toContainText("위치를 설정하면", { timeout: 10000 });
@@ -241,7 +315,7 @@ test("식당 로딩과 오류", async ({ page }) => {
 test("식당 데이터 실패", async ({ page }) => {
   await page.route("**/restaurants.json", (route) => route.abort());
   await page.goto("/");
-  await page.getByRole("tab", { name: "혼밥 식당" }).click();
+  await page.getByRole("tab", { name: "식당", exact: true }).click();
   await expect(page.locator("#foodStatus")).toContainText("불러오지 못했어요");
   await expect(page.getByRole("button", { name: "다시 시도" })).toBeVisible();
   await page.screenshot({ path: `${ART}/mobile_restaurants_error.png` });
