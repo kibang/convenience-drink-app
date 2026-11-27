@@ -53,13 +53,14 @@ input[type=text],select,textarea{width:100%;max-width:100%;min-height:44px;font-
 textarea.logbox{min-height:120px;font-size:15px}
 .section-label{font-size:18px;line-height:1.4;margin:4px 0 0;padding:0}
 .map-frame{height:240px;border-radius:var(--radius);background:#f4f4f5}
-#map{height:240px;width:100%;background:#f4f4f5}
+#map,#afterMap,#summaryMap{height:240px;width:100%;background:#f4f4f5}
 .leaflet-container,.leaflet-container *{box-sizing:content-box}
 .leaflet-container img{max-width:none!important;max-height:none!important}
 .leaflet-bar a{width:36px;height:36px;line-height:36px}
 .leaflet-control-attribution{font-size:11px;line-height:1.4;max-width:calc(100% - 8px);white-space:normal;background:rgba(255,255,255,.94)}
 .map-attr{font-size:14px;line-height:1.5;color:#3f3f46;margin:8px 0 0}
-.place{border:2px solid transparent}
+.place{border:2px solid transparent;cursor:pointer}
+.place.on{border-color:#15803d}
 .meta,.note,.addr{margin:8px 0 0;font-size:15px;line-height:1.5;color:#3f3f46}
 .badges{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 .badge{display:inline-flex;align-items:center;min-height:28px;border-radius:8px;padding:4px 8px;font-size:13px;line-height:1.4;margin:0}
@@ -69,13 +70,15 @@ textarea.logbox{min-height:120px;font-size:15px}
 .est{background:#eef3ff;color:#1a3e8a}
 .warn{background:#fff4e0;border-left:4px solid #e0a100;padding:12px;font-size:15px;line-height:1.5;border-radius:12px}
 #rainBanner .act{margin-top:8px}
-.drink{font-size:15px;line-height:1.5;padding:12px 0;border-top:1px solid var(--line)}
-.drink:first-of-type{border-top:0}
 a{color:#1a4fbf}
 :focus-visible{outline:3px solid #1a3e8a;outline-offset:2px}
 .pin-wrap{background:transparent;border:0}
 .pin{display:block;width:16px;height:16px;margin:3px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #222}
+.pin.me{border-radius:4px}
+.pin.walk{background:#fff!important;box-shadow:0 0 0 3px #15803d}
 .pin.visited{opacity:.4;filter:grayscale(1)}
+.leaflet-popup-content{margin:10px 12px;font-size:14px;line-height:1.4;color:#1a1a1a}
+.leaflet-popup-content b{font-size:15px}
 .place.visited{opacity:.5;filter:grayscale(.85)}
 .visit,.known-menu{display:flex;align-items:center;gap:8px;min-height:44px;font-size:15px;line-height:1.5}
 .menu-row{display:flex;gap:8px;align-items:center;margin-top:8px}
@@ -185,9 +188,11 @@ details.more summary{min-height:44px;display:flex;align-items:center;font-size:1
 <div class="card">
 <h2>식후</h2>
 <p id="afterIntro" class="note"></p>
+<div class="map-frame"><div id="afterMap" role="application" aria-label="식당과 식후 장소 지도"></div></div>
+<p id="afterMapMsg" class="note" hidden>지도 타일을 불러오지 못했어요. 인터넷 연결을 확인해 주세요.</p>
+<p class="map-attr">지도 © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 기여자</p>
 </div>
 <div id="afterList"></div>
-<div class="card" id="promoCard"></div>
 </section>
 <section id="step-course" hidden>
 <div class="card">
@@ -201,6 +206,9 @@ details.more summary{min-height:44px;display:flex;align-items:center;font-size:1
 <section id="step-summary" hidden>
 <div class="card summary">
 <h2>오늘의 코스</h2>
+<div class="map-frame"><div id="summaryMap" role="application" aria-label="식당, 식후, 산책 시작 지도"></div></div>
+<p id="summaryMapMsg" class="note" hidden>지도 타일을 불러오지 못했어요. 인터넷 연결을 확인해 주세요.</p>
+<p class="map-attr">지도 © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 기여자</p>
 <div id="summaryBody"></div>
 <label for="shareUrl">공유 링크</label>
 <input id="shareUrl" readonly>
@@ -214,7 +222,6 @@ details.more summary{min-height:44px;display:flex;align-items:center;font-size:1
 </div>
 </div>
 <script src="vendor/leaflet/leaflet.js"></script>
-<script src="data.js"></script>
 <script>
 const PARTY_LABEL={"1":"1명 (혼밥)","2":"2명","3-4":"3~4명","5+":"5명 이상"};
 const STEPS=[["party","인원"],["place","위치"],["hall","홀"],["cuisine","음식"],["food","식당"],["after","식후"],["course","코스"],["summary","요약"]];
@@ -222,8 +229,10 @@ const FOOD_LABEL={han:"한식",jp:"일식",cn:"중식",west:"양식",snack:"분�
 const FOOD_ORDER=["han","jp","cn","west","snack","meat","noodle","fast","other"];
 const GEOERR={1:"위치 권한이 거부됐어요. 주소창 왼쪽 자물쇠(ⓘ) → 권한 → 위치를 '허용'으로 바꾸거나, 아래에 주소를 입력하세요. 출발지는 누리꿈스퀘어로 둡니다.",2:"현재 위치를 확인할 수 없어요(GPS/네트워크 위치 꺼짐). 휴대폰 설정에서 '위치'를 켜거나 주소를 입력하세요. 출발지는 누리꿈스퀘어로 둡니다.",3:"위치 확인 시간이 초과됐어요. 실내라면 잠시 후 다시 시도하거나 주소를 입력하세요. 출발지는 누리꿈스퀘어로 둡니다."};
 const SOLO=new Set(["분식/김밥","면/라면","덮밥/돈가스","버거/샌드위치","초밥","한그릇/백반","패스트푸드","간편식"]);
-const state={party:null,step:"party",origin:null,hall:"any",foods:[],rest:null,after:null,course:null,rainy:false,weatherMsg:"",forceOutdoor:false,sangam:null,osmR:null,osmS:null};
-let map,layer,SANGAM;
+const state={party:null,step:"party",origin:null,hall:"any",foods:[],rest:null,after:null,course:null,rainy:false,weatherMsg:"",forceOutdoor:false,sangam:null,osmR:null};
+let SANGAM;
+const maps={};
+let foodAll=[],afterAll=[];
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
 function hav(a,b,c,d){const R=6371000,p=Math.PI/180,x=Math.sin((c-a)*p/2)**2+Math.cos(a*p)*Math.cos(c*p)*Math.sin((d-b)*p/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
 function walkMinFrom(m){return Math.max(1,Math.round(m*1.3/70))}
@@ -456,47 +465,127 @@ function arrange(list){
  return state.log.hideVisited?rows.filter(p=>!isVisited(p)):rows;
 }
 function pin(cls,color,visited){return L.divIcon({className:"pin-wrap",html:`<span class="pin ${cls}${visited?" visited":""}" style="background:${color}"></span>`,iconSize:[22,22],iconAnchor:[11,11]})}
-let tileOk=0,tileBad=0;
-function refreshMap(){
- if(!map)return;
- const el=document.getElementById("map");
- if(!el||el.clientHeight<40)return;
- map.invalidateSize();
+function cardWalk(p){
+ if(p.type==="cafe"||p.type==="dessert")return walkMinFrom(p.d||0);
+ if(p.src==="sangam"&&state.origin&&hav(state.origin.lat,state.origin.lng,SANGAM.origin.lat,SANGAM.origin.lng)<200&&p.walkMin)return p.walkMin;
+ return walkMinFrom(p.d||0);
 }
-function ensureMap(){
- const el=document.getElementById("map");
- if(!el||el.clientHeight<40)return false;
- if(map){refreshMap();return true}
- map=L.map(el,{zoomControl:true}).setView([state.origin.lat,state.origin.lng],15);
+function popupHtml(name,line){return `<b>${esc(name)}</b><br>${esc(line)}`}
+function closePopups(rec){
+ if(!rec)return;
+ rec.map.closePopup();
+ rec.map.getContainer().querySelectorAll(".leaflet-popup").forEach(el=>el.remove());
+}
+function refreshMap(id){
+ const rec=maps[id];
+ const el=document.getElementById(id);
+ if(!rec||!el||el.clientHeight<40)return;
+ rec.map.invalidateSize();
+}
+function ensureMap(id){
+ const el=document.getElementById(id);
+ if(!el||el.clientHeight<40)return null;
+ if(maps[id]){refreshMap(id);return maps[id]}
+ const map=L.map(el,{zoomControl:true}).setView([state.origin.lat,state.origin.lng],15);
  const tiles=L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'});
- tiles.on("tileload",()=>{tileOk++;const msg=document.getElementById("mapMsg");if(msg)msg.hidden=true});
- tiles.on("tileerror",()=>{tileBad++;if(tileBad>=4&&tileOk===0){const msg=document.getElementById("mapMsg");if(msg)msg.hidden=false}});
+ const msgId=id==="map"?"mapMsg":id+"Msg";
+ let ok=0,bad=0;
+ tiles.on("tileload",()=>{ok++;const msg=document.getElementById(msgId);if(msg)msg.hidden=true});
+ tiles.on("tileerror",()=>{bad++;if(bad>=4&&ok===0){const msg=document.getElementById(msgId);if(msg)msg.hidden=false}});
  tiles.addTo(map);
  map.attributionControl.setPrefix(false);
- layer=L.layerGroup().addTo(map);
- refreshMap();
- return true;
+ const layer=L.layerGroup().addTo(map);
+ maps[id]={map,layer,byId:new Map()};
+ refreshMap(id);
+ return maps[id];
 }
-function drawFoodMap(places){
- if(!ensureMap()){requestAnimationFrame(()=>drawFoodMap(places));return}
- layer.clearLayers();
+function addMarker(rec,lat,lng,cls,color,title,html,key,visited){
+ const m=L.marker([lat,lng],{icon:pin(cls,color,visited),title:title||"",keyboard:!!key});
+ if(html)m.bindPopup(html,{maxWidth:220,autoPanPadding:[12,12]});
+ m.addTo(rec.layer);
+ if(key)rec.byId.set(key,m);
+ return m;
+}
+function drawMap(id,places,extra){
+ const rec=ensureMap(id);
+ if(!rec){requestAnimationFrame(()=>drawMap(id,places,extra));return}
+ closePopups(rec);
+ rec.layer.clearLayers();
+ rec.byId=new Map();
+ const bounds=[];
+ const put=(lat,lng)=>{if(Number.isFinite(lat)&&Number.isFinite(lng))bounds.push([lat,lng])};
  const o=state.origin;
- L.marker([o.lat,o.lng],{icon:pin("me","#15803d"),keyboard:false,title:"출발"}).addTo(layer);
- const bounds=[[o.lat,o.lng]];
- places.forEach(p=>{
-  const m=L.marker([p.lat,p.lng],{icon:pin("place","#15803d",isVisited(p)),title:p.name,keyboard:true});
-  m.on("click",()=>document.getElementById("p-"+encodeURIComponent(p.name))?.scrollIntoView({block:"nearest"}));
-  m.addTo(layer);bounds.push([p.lat,p.lng]);
+ if(!extra||!extra.skipOrigin){
+  addMarker(rec,o.lat,o.lng,"me","#15803d","출발",popupHtml("출발",o.name),"origin",false);
+  put(o.lat,o.lng);
+ }
+ if(extra&&extra.chosen){
+  const c=extra.chosen;
+  addMarker(rec,c.lat,c.lng,"chosen","#1a1a1a",c.name,popupHtml(c.name,"고른 식당"),"chosen",false);
+  put(c.lat,c.lng);
+ }
+ (places||[]).forEach(p=>{
+  const m=addMarker(rec,p.lat,p.lng,"place","#15803d",p.name,popupHtml(p.name,`도보 약 ${cardWalk(p)}분`),placeId(p),isVisited(p));
+  m.on("click",()=>revealPlace(id,p));
+  put(p.lat,p.lng);
  });
- map.fitBounds(bounds,{padding:[20,20],maxZoom:16});
- refreshMap();
- setTimeout(refreshMap,80);
- setTimeout(refreshMap,300);
+ (extra&&extra.points||[]).forEach(pt=>{
+  addMarker(rec,pt.lat,pt.lng,pt.cls,pt.color,pt.name,popupHtml(pt.name,pt.line),pt.key,false);
+  put(pt.lat,pt.lng);
+ });
+ if(extra&&extra.line&&extra.line.length>1)L.polyline(extra.line,{color:"#15803d",weight:4,opacity:.9}).addTo(rec.layer);
+ if(bounds.length===1)rec.map.setView(bounds[0],16);
+ else if(bounds.length)rec.map.fitBounds(bounds,{padding:[36,36],maxZoom:16});
+ refreshMap(id);
+ setTimeout(()=>refreshMap(id),80);
+ setTimeout(()=>refreshMap(id),300);
 }
-window.addEventListener("resize",()=>{if(state.step==="food")refreshMap()});
+function highlightPlace(mapId,p){
+ const root=document.getElementById(mapId==="map"?"foodList":"afterList");
+ if(!root)return;
+ root.querySelectorAll(".place.on").forEach(el=>el.classList.remove("on"));
+ const card=[...root.querySelectorAll(".place")].find(el=>el.dataset.id===placeId(p));
+ if(card){card.classList.add("on");card.scrollIntoView({block:"nearest"})}
+ const rec=maps[mapId];
+ const marker=rec&&rec.byId.get(placeId(p));
+ if(marker){closePopups(rec);marker.openPopup()}
+}
+function revealPlace(mapId,p){
+ if(mapId==="map"){
+  const fresh=foodAll.filter(x=>!isVisited(x));
+  const idx=fresh.findIndex(x=>placeId(x)===placeId(p));
+  if(idx>=(state.listMore||8)){state.listMore=idx+1;renderFood().then(()=>highlightPlace(mapId,p));return}
+ }
+ if(mapId==="afterMap"){
+  const fresh=afterAll.filter(x=>x.type===p.type&&!isVisited(x));
+  const idx=fresh.findIndex(x=>placeId(x)===placeId(p));
+  if(idx>=(state.afterMore||8)){state.afterMore=idx+1;renderAfter().then(()=>highlightPlace(mapId,p));return}
+ }
+ highlightPlace(mapId,p);
+}
+function bindCardPan(root,mapId,list){
+ root.querySelectorAll(".place").forEach(card=>{
+  card.onclick=e=>{
+   if(e.target.closest("button,a,input,summary,label,textarea"))return;
+   const p=list.find(x=>placeId(x)===card.dataset.id);
+   const rec=maps[mapId];
+   const marker=p&&rec&&rec.byId.get(placeId(p));
+   if(!marker)return;
+   closePopups(rec);
+   rec.map.panTo(marker.getLatLng(),{animate:false});
+   marker.openPopup();
+   root.querySelectorAll(".place.on").forEach(el=>el.classList.remove("on"));
+   card.classList.add("on");
+  };
+ });
+}
+window.addEventListener("resize",()=>{
+ if(state.step==="food")refreshMap("map");
+ if(state.step==="after")refreshMap("afterMap");
+ if(state.step==="summary")refreshMap("summaryMap");
+});
 async function loadOsm(){
- if(!state.osmR){const r=await fetch("restaurants.json");const j=await r.json();state.osmR=j}
- if(!state.osmS){const r=await fetch("stores.json");const j=await r.json();state.osmS=j.s||[]}
+ if(!state.osmR){const r=await fetch("restaurants.json");state.osmR=await r.json()}
 }
 function foodKeys(p){
  const c=p.category||"";
@@ -608,10 +697,10 @@ function shortTag(p){
 }
 function placeCard(p,buttonLabel){
  const st=openStatus(p.hours);
- const walk=p.src==="sangam"&&hav(state.origin.lat,state.origin.lng,SANGAM.origin.lat,SANGAM.origin.lng)<200?p.walkMin:walkMinFrom(p.d);
+ const walk=cardWalk(p);
  const tag=shortTag(p);
  const price=p.priceNote?`<p class="note">가격 메모: ${esc(p.priceNote)}. 메뉴 전체가 아닙니다.</p>`:"";
- const id="p-"+encodeURIComponent(p.name);
+ const id="p-"+encodeURIComponent(placeId(p));
  return `<article class="card place${isVisited(p)?" visited":""}" id="${id}" data-name="${esc(p.name)}" data-id="${esc(placeId(p))}">
   <h3>${esc(p.name)}</h3>
   <p class="meta">${esc(p.category||"식당")} · 도보 약 ${walk}분</p>
@@ -712,58 +801,34 @@ async function renderFood(){
  const loosen=document.getElementById("loosen");
  if(loosen)loosen.onclick=()=>loosenFilters();
  bindVisit(root,view.shown,()=>renderFood());
+ bindCardPan(root, "map", view.shown);
  syncHide();
- drawFoodMap(view.shown);
-}
-function pairRule(rest){
- const s=`${rest.name} ${rest.category||""}`;
- if(/떡볶이|마라|짬뽕|매운|엽기|불닭|라볶이/.test(s))return {genres:["우유/두유","차","생수"],why:"매운 음식 이름이라 우유·차·생수를 골랐습니다. 매운맛을 낮춘다는 뜻이 아니라 같이 고르기 쉬운 조합입니다."};
- if(/버거|햄버거|맥도날/.test(s))return {genres:["탄산","커피"],why:"버거에는 탄산·커피를 맞췄습니다. 건강 효과가 아닙니다."};
- if(/라면|라멘|국수|쌀국수|우동|면/.test(s))return {genres:["생수","차","우유/두유"],why:"면 요리에는 생수·차·우유를 맞췄습니다. 건강 효과가 아닙니다."};
- if(/김밥|분식/.test(s))return {genres:["우유/두유","차","탄산"],why:"분식·김밥에는 우유·차·탄산을 맞췄습니다. 건강 효과가 아닙니다."};
- if(/덮밥|샤브|곰탕|국밥|한식|두부/.test(s))return {genres:["탄산","차","생수"],why:"밥·국물에는 탄산·차·생수를 맞췄습니다. 건강 효과가 아닙니다."};
- if(/파스타|피자|양식|이탈리|핀사/.test(s))return {genres:["탄산","커피"],why:"양식에는 탄산·커피를 맞췄습니다. 건강 효과가 아닙니다."};
- return {genres:["생수","차","탄산"],why:"종류를 더 좁히지 못해 생수·차·탄산을 골랐습니다. 건강 효과가 아닙니다."};
-}
-function promoItems(rule){
- const data=window.DRINK_DATA;
- if(!data||!data.items)return [];
- const out=[];
- for(const g of rule.genres){
-  const rows=data.items.filter(x=>x.genre===g&&(x.chain==="CU"||x.chain==="emart24")).sort((a,b)=>(a.price??1e9)-(b.price??1e9));
-  for(const x of rows){if(out.filter(p=>p.genre===g).length>=2)break;if(!out.some(p=>p.name===x.name&&p.chain===x.chain&&p.promo===x.promo))out.push(x)}
- }
- return out.slice(0,6);
+ foodAll=all.filter(p=>!state.log.hideVisited||!isVisited(p));
+ drawMap("map", foodAll);
 }
 async function afterPlaces(){
  const from=state.rest;
- if(nearNuri()){
-  return SANGAM.places.filter(p=>["cafe","dessert","convenience"].includes(p.type)&&p.partySizes.includes(state.party)).map(p=>({...p,d:distOf(p,from),src:"sangam"}));
- }
- await loadOsm();
- const CHI=["CU","GS25","7-Eleven","emart24","기타"];
- return state.osmS.map(s=>({name:s[3]||CHI[s[0]]||"편의점",type:"convenience",category:CHI[s[0]]||"편의점",lat:s[1],lng:s[2],hours:"",sourceUrl:"https://www.openstreetmap.org/copyright",notes:"",partySizes:["1","2","3-4","5+"],d:Math.round(hav(from.lat,from.lng,s[1],s[2])),src:"osm",fitLabel:"추정"})).filter(p=>p.d<=1200).sort((a,b)=>a.d-b.d).slice(0,12);
+ if(!nearNuri())return [];
+ return SANGAM.places.filter(p=>(p.type==="cafe"||p.type==="dessert")&&p.partySizes.includes(state.party)).map(p=>({...p,d:distOf(p,from),src:"sangam"}));
 }
 async function renderAfter(){
  const places=await afterPlaces();
- document.getElementById("afterIntro").textContent=nearNuri()?`${state.rest.name} 근처입니다.`:`${state.rest.name} 근처 편의점만 보여 줍니다.`;
- const labels={cafe:"카페",dessert:"디저트",convenience:"편의점"};
- const packed=["cafe","dessert","convenience"].map(type=>({type,label:labels[type],...capGroup(places.filter(p=>p.type===type))}));
+ afterAll=places.filter(p=>!state.log.hideVisited||!isVisited(p));
+ document.getElementById("afterIntro").textContent=nearNuri()?`${state.rest.name} 근처 카페·디저트 ${afterAll.length}곳.`:"이 근처 카페·디저트 자료는 없어요.";
+ const labels={cafe:"카페",dessert:"디저트"};
+ const packed=["cafe","dessert"].map(type=>({type,label:labels[type],...capGroup(afterAll.filter(p=>p.type===type))}));
  const groups=packed.map(g=>g.rows.length?`<h2 class="section-label">${g.label}</h2>`+g.rows.map(p=>placeCard(p,"식후로 정하기")).join(""):"").join("");
  const box=document.getElementById("afterList");
  const more=packed.some(g=>g.more);
- box.innerHTML=(groups||`<div class="card">가까운 식후 장소가 없어요.</div>`)+(more?`<button type="button" class="ghost" id="moreAfter">더 보기</button>`:"");
+ box.innerHTML=(groups||`<div class="card">가까운 카페·디저트가 없어요.</div>`)+(more?`<button type="button" class="ghost" id="moreAfter">더 보기</button>`:"");
  const ordered=packed.flatMap(g=>g.rows);
  box.querySelectorAll(".pick").forEach((b,i)=>b.onclick=()=>{state.after=ordered[i];state.course=null;go("course")});
  bindVisit(box,ordered,()=>renderAfter());
+ bindCardPan(box,"afterMap",ordered);
  const moreBtn=document.getElementById("moreAfter");
  if(moreBtn)moreBtn.onclick=()=>{state.afterMore=(state.afterMore||8)+8;renderAfter()};
  syncHide();
- const rule=pairRule(state.rest);
- const items=promoItems(rule);
- const when=(window.DRINK_DATA&&window.DRINK_DATA.updated)||"-";
- document.getElementById("promoCard").innerHTML=`<h2>편의점 행사</h2><p class="note">왜 추천? ${esc(rule.why)}</p><p class="note">행사 데이터 수집: ${esc(when)}. CU·이마트24만 있습니다.</p>`+
-  items.map(x=>`<div class="drink" data-name="${esc(x.name)}" data-price="${x.price??""}" data-promo="${esc(x.promo)}" data-genre="${esc(x.genre)}" data-chain="${esc(x.chain)}"><b>${esc(x.chain)}</b> ${esc(x.promo)} · ${esc(x.genre)}<br>${esc(x.name)}<br>${x.price!=null?x.price.toLocaleString()+"원":"가격 정보 없음"}</div>`).join("");
+ drawMap("afterMap", afterAll, {chosen:state.rest});
 }
 function capGroup(rows){
  const ordered=rows.slice().sort((a,b)=>a.d-b.d);
@@ -886,7 +951,14 @@ function renderSummary(){
   <h3>식당</h3><p>${esc(rest.name)} · 출발지에서 도보 약 ${rw}분 <span class="badge est">추정</span></p>
   <h3>식후</h3><p>${esc(after.name)} · 식당에서 도보 약 ${aw}분 <span class="badge est">추정</span></p>
   <h3>산책/액티비티</h3><p>${esc(course.name)} · 약 ${cw}분 <span class="badge est">추정</span></p>
-  <p class="note">${esc(SANGAM.walkMinNote)}</p>`;
+  <p class="note">식당 → 식후 → 산책 시작. ${esc(SANGAM.walkMinNote)}</p>`;
+ const walk=course.kind==="place"&&Number.isFinite(+course.lat)?{lat:+course.lat,lng:+course.lng,name:course.name,line:`약 ${cw}분`}:{lat:state.origin.lat,lng:state.origin.lng,name:course.start||state.origin.name,line:`식후에서 도보 약 ${walkMinFrom(distOf(after,state.origin))}분`};
+ const points=[
+  {lat:rest.lat,lng:rest.lng,name:rest.name,line:`출발지에서 도보 약 ${rw}분`,cls:"rest",color:"#15803d",key:"sum-rest"},
+  {lat:after.lat,lng:after.lng,name:after.name,line:`식당에서 도보 약 ${aw}분`,cls:"after",color:"#1a1a1a",key:"sum-after"},
+  {lat:walk.lat,lng:walk.lng,name:walk.name,line:walk.line,cls:"walk",color:"#ffffff",key:"sum-walk"}
+ ];
+ drawMap("summaryMap", [], {skipOrigin:true, points, line:points.map(p=>[p.lat,p.lng])});
  const url=shareUrl();
  document.getElementById("shareUrl").value=url;
  history.replaceState(null,"",url);
@@ -925,7 +997,6 @@ async function boot(){
  const r=await fetch("data/sangam.json");
  SANGAM=await r.json();
  state.origin={...SANGAM.origin};
- if(!window.DRINK_DATA){try{window.DRINK_DATA=await (await fetch("data.json")).json()}catch(e){}}
  paintOrigin();
  restoreHash();
 }

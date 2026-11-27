@@ -83,10 +83,14 @@ test("인원을 고르기 전에는 식당이 나오지 않고, 네 인원 모�
   expect(mapH).toBeGreaterThanOrEqual(230);
   expect(mapH).toBeLessThanOrEqual(250);
   await expect.poll(async () => page.locator("#map .leaflet-tile").evaluateAll((imgs) => imgs.filter((img) => img.complete && img.naturalWidth > 0).length), { timeout: 20000 }).toBeGreaterThan(0);
+  const foodCount = Number((await page.locator("#foodIntro").textContent()).match(/(\d+)곳/)[1]);
+  expect(foodCount).toBeGreaterThan(8);
+  await expect(page.locator("#map .pin.place")).toHaveCount(foodCount);
+  expect(await page.locator("#foodList .place").count()).toBeLessThan(foodCount);
   const backH = await page.locator("#dockBack").evaluate((el) => el.getBoundingClientRect().height);
   expect(backH).toBeGreaterThanOrEqual(44);
   await expect(page.locator(".leaflet-marker-icon").first()).toBeVisible();
-  await expect(page.locator(".map-attr")).toContainText("OpenStreetMap");
+  await expect(page.locator("#step-food .map-attr")).toContainText("OpenStreetMap");
   if (testInfo.project.name === "phone") await page.screenshot({ path: `${ART}/phone_restaurants_solo.png` });
   await noOverflow(page);
 
@@ -108,32 +112,62 @@ test("인원을 고르기 전에는 식당이 나오지 않고, 네 인원 모�
   expect(errors).toEqual([]);
 });
 
-test("1명 코스: 식후 행사 음료와 요약", async ({ page }, testInfo) => {
+test("1명 코스: 식후는 카페·디저트만, 지도 마커는 목록과 같다", async ({ page }, testInfo) => {
   const errors = watch(page);
   await mockWeather(page, false);
   await page.goto("/");
   await chooseParty(page, "1명 (혼밥)");
+  const foodCount = Number((await page.locator("#foodIntro").textContent()).match(/(\d+)곳/)[1]);
+  await expect(page.locator("#map .pin.place")).toHaveCount(foodCount);
+  await expect.poll(async () => page.locator("#map .leaflet-tile").evaluateAll((imgs) => imgs.filter((img) => img.complete && img.naturalWidth > 0).length), { timeout: 20000 }).toBeGreaterThan(0);
+  await noOverflow(page);
+  if (testInfo.project.name === "phone") await page.screenshot({ path: `${ART}/phone_restaurants_map.png` });
+
+  await page.locator("#map").scrollIntoViewIfNeeded();
+  await page.locator('#map .leaflet-marker-icon[title="미분당 상암DMC점"]').click();
+  await expect(page.locator("#foodList .place.on")).toContainText("미분당");
+  await expect(page.locator("#map .leaflet-popup-content")).toHaveCount(1);
+  await expect(page.locator("#map .leaflet-popup-content")).toContainText("미분당");
+  await expect(page.locator("#map .leaflet-popup-content")).toContainText("도보 약");
+  await page.locator("#foodList .place", { hasText: "새참당" }).locator("h3").click();
+  await expect(page.locator("#map .leaflet-popup-content")).toContainText("새참당");
+  const nearCenter = await page.evaluate(() => {
+    const mapEl = document.getElementById("map");
+    const marker = mapEl.querySelector('.leaflet-marker-icon[title="새참당 상암DMC본점"]');
+    const mr = marker.getBoundingClientRect();
+    const br = mapEl.getBoundingClientRect();
+    const dx = mr.left + mr.width / 2 - (br.left + br.width / 2);
+    const dy = mr.top + mr.height / 2 - (br.top + br.height / 2);
+    return Math.hypot(dx, dy) < 90;
+  });
+  expect(nearCenter).toBeTruthy();
+
   await page.locator(".place", { hasText: "틈새라면" }).getByRole("button", { name: "여기로 정하기" }).click();
   await expect(page.getByRole("heading", { name: "식후", exact: true })).toBeVisible();
   await expect(page.locator("#afterList")).toContainText("카페");
   await expect(page.locator("#afterList")).toContainText("디저트");
-  await expect(page.locator("#afterList")).toContainText("편의점");
-  await expect(page.locator("#promoCard")).toContainText("왜 추천?");
-  await expect(page.locator("#promoCard")).toContainText("행사 데이터 수집");
-  const drink = page.locator("#promoCard .drink").first();
-  await expect(drink).toBeVisible();
-  const row = await drink.evaluate((el) => ({ name: el.dataset.name, price: el.dataset.price, promo: el.dataset.promo, chain: el.dataset.chain }));
-  expect(["CU", "emart24"]).toContain(row.chain);
-  expect(row.promo).toMatch(/1\+1|2\+1|할인|덤증정|골라담기/);
-  const found = await page.evaluate((item) => {
-    const data = window.DRINK_DATA.items;
-    return data.some((x) => x.name === item.name && x.chain === item.chain && String(x.price) === item.price && x.promo === item.promo);
-  }, row);
-  expect(found).toBeTruthy();
+  await expect(page.locator("body")).not.toContainText("편의점");
+  await expect(page.locator("#promoCard")).toHaveCount(0);
+  const afterCount = Number((await page.locator("#afterIntro").textContent()).match(/(\d+)곳/)[1]);
+  expect(afterCount).toBeGreaterThan(0);
+  await expect(page.locator("#afterMap .pin.place")).toHaveCount(afterCount);
+  await expect(page.locator("#afterMap .pin.chosen")).toHaveCount(1);
+  await expect(page.locator("#afterMap .pin.me")).toHaveCount(1);
+  const afterH = await page.locator("#afterMap").evaluate((el) => el.getBoundingClientRect().height);
+  expect(afterH).toBeGreaterThanOrEqual(230);
+  await expect.poll(async () => page.locator("#afterMap .leaflet-tile").evaluateAll((imgs) => imgs.filter((img) => img.complete && img.naturalWidth > 0).length), { timeout: 20000 }).toBeGreaterThan(0);
+  await page.locator("#afterMap").scrollIntoViewIfNeeded();
+  if (testInfo.project.name === "phone") await page.screenshot({ path: `${ART}/phone_after_map.png` });
   await page.locator("#afterList .place").first().locator("summary").click();
   await expect(page.locator("#afterList .place").first()).toContainText("가봤어요");
+  const cafe = page.locator("#afterList .place").first();
+  const cafeName = (await cafe.locator("h3").textContent()).trim();
+  await cafe.locator("h3").click();
+  await expect(page.locator("#afterMap .leaflet-popup-content")).toContainText(cafeName);
+  await expect(page.locator("#afterMap .leaflet-popup-content")).toContainText("도보 약");
+  await noOverflow(page);
 
-  await page.locator("#afterList .place", { hasText: "편의점" }).first().getByRole("button", { name: "식후로 정하기" }).click();
+  await page.locator("#afterList .place").first().getByRole("button", { name: "식후로 정하기" }).click();
   await expect(page.getByRole("heading", { name: "코스", exact: true })).toBeVisible();
   await expect(page.locator("#rainBanner")).toBeHidden();
   await expect(page.locator("#courseList")).toContainText("DMC 야경");
@@ -143,9 +177,16 @@ test("1명 코스: 식후 행사 음료와 요약", async ({ page }, testInfo) =
   await expect(page.locator("#summaryBody")).toContainText("추정");
   await expect(page.locator("#shareUrl")).toHaveValue(/party=1/);
   await expect(page.locator("#shareUrl")).toHaveValue(/rest=/);
+  await expect(page.locator("#summaryMap .pin")).toHaveCount(3);
+  await expect(page.locator("#summaryMap path.leaflet-interactive")).toHaveCount(1);
+  const sumH = await page.locator("#summaryMap").evaluate((el) => el.getBoundingClientRect().height);
+  expect(sumH).toBeGreaterThanOrEqual(230);
+  await expect.poll(async () => page.locator("#summaryMap .leaflet-tile").evaluateAll((imgs) => imgs.filter((img) => img.complete && img.naturalWidth > 0).length), { timeout: 20000 }).toBeGreaterThan(0);
+  await expect(page.locator("body")).not.toContainText("편의점");
+  await page.locator("#summaryMap").scrollIntoViewIfNeeded();
+  if (testInfo.project.name === "phone") await page.screenshot({ path: `${ART}/phone_course_summary.png` });
   await page.getByRole("button", { name: "링크 복사" }).click();
   await expect(page.locator("#copyMsg")).toContainText("복사");
-  if (testInfo.project.name === "phone") await page.screenshot({ path: `${ART}/phone_course_summary.png` });
   await noOverflow(page);
   expect(errors).toEqual([]);
 });
@@ -187,6 +228,7 @@ test("가봤어요는 새로고침 뒤에도 흐리게 맨 아래 남고, 기록
   }
   await (await openSaecham()).getByRole("checkbox", { name: "가봤어요" }).click();
   await expect(page.locator("#foodList .place.visited", { hasText: "새참당" })).toBeVisible();
+  await expect(page.locator("#map .pin.visited")).toHaveCount(1);
   await (await openSaecham()).getByRole("checkbox", { name: /유린기/ }).click();
   const typed = await openSaecham();
   await typed.locator(".menu-input").fill("김치찌개");
