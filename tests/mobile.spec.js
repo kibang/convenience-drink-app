@@ -39,12 +39,20 @@ async function noOverflow(page) {
   expect(box.sw).toBeLessThanOrEqual(box.iw + 1);
 }
 
+async function passMealPrefs(page) {
+  await expect(page.getByRole("heading", { name: "어떻게 드실래요?" })).toBeVisible();
+  await page.getByRole("button", { name: "건너뛰기" }).click();
+  await expect(page.getByRole("heading", { name: "어떤 음식?" })).toBeVisible();
+  await page.getByRole("button", { name: "건너뛰기" }).click();
+  await expect(page.locator("#foodList .place").first()).toBeVisible();
+}
+
 async function chooseParty(page, name) {
   await page.getByRole("button", { name }).click();
   await expect(page.getByRole("heading", { name: "어디서 시작할까요?" })).toBeVisible();
   await expect(page.locator("#originLabel")).toContainText("누리꿈스퀘어");
   await page.getByRole("button", { name: "이 위치로 식당 보기" }).click();
-  await expect(page.locator("#foodList .place").first()).toBeVisible();
+  await passMealPrefs(page);
 }
 
 test.beforeAll(() => fs.mkdirSync(ART, { recursive: true }));
@@ -58,9 +66,9 @@ test("인원을 고르기 전에는 식당이 나오지 않고, 네 인원 모�
   expect(viewport).toContain("initial-scale=1");
   expect(viewport).toContain("viewport-fit=cover");
   await expect(page.getByRole("heading", { name: "몇 명이서 드실 건가요?" })).toBeVisible();
-  const partyCols = await page.locator(".choices").evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length);
+  const partyCols = await page.locator("#partyChoices").evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length);
   expect(partyCols).toBe(2);
-  const partyH = await page.locator(".choices button").first().evaluate((el) => el.getBoundingClientRect().height);
+  const partyH = await page.locator("#partyChoices button").first().evaluate((el) => el.getBoundingClientRect().height);
   expect(partyH).toBeGreaterThanOrEqual(44);
   await expect(page.locator("#step-food")).toBeHidden();
   await expect(page.locator("#foodList .place")).toHaveCount(0);
@@ -238,6 +246,98 @@ test("위치 권한이 없어도 누리꿈스퀘어로 식당을 본다", async 
   await expect(page.locator("#locMsg")).toContainText("거부");
   await expect(page.locator("#originLabel")).toContainText("누리꿈스퀘어");
   await page.getByRole("button", { name: "이 위치로 식당 보기" }).click();
+  await passMealPrefs(page);
   await expect(page.locator("#foodList")).toContainText("틈새라면");
+  expect(errors).toEqual([]);
+});
+
+test("홀과 음식 종류를 고르면 목록과 지도가 그 조건만 보여 준다", async ({ page }, testInfo) => {
+  const errors = watch(page);
+  await mockWeather(page, false);
+  await page.goto("/");
+  await page.getByRole("button", { name: "1명 (혼밥)" }).click();
+  await page.getByRole("button", { name: "이 위치로 식당 보기" }).click();
+  await expect(page.getByRole("heading", { name: "어떻게 드실래요?" })).toBeVisible();
+  const hallCols = await page.locator("#hallChoices").evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length);
+  expect(hallCols).toBe(2);
+  const hallH = await page.locator("#hallChoices button").first().evaluate((el) => el.getBoundingClientRect().height);
+  expect(hallH).toBeGreaterThanOrEqual(44);
+  await expect(page.getByRole("button", { name: "홀에서 먹기" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "포장·배달도 OK" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "건너뛰기" })).toBeVisible();
+  await noOverflow(page);
+  if (testInfo.project.name === "phone") await page.screenshot({ path: `${ART}/phone_hall.png` });
+
+  await page.getByRole("button", { name: "건너뛰기" }).click();
+  await expect(page.getByRole("heading", { name: "어떤 음식?" })).toBeVisible();
+  const foodCols = await page.locator("#cuisineChoices").evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length);
+  expect(foodCols).toBe(2);
+  await expect(page.getByRole("button", { name: /^한식/ })).toContainText("4곳");
+  await expect(page.getByRole("button", { name: /^일식/ })).toContainText("3곳");
+  await expect(page.getByRole("button", { name: /^중식/ })).toContainText("1곳");
+  await expect(page.getByRole("button", { name: /^양식/ })).toContainText("1곳");
+  await expect(page.getByRole("button", { name: /^분식/ })).toContainText("2곳");
+  await expect(page.getByRole("button", { name: /^면·라멘/ })).toContainText("4곳");
+  await expect(page.getByRole("button", { name: /^패스트푸드/ })).toContainText("1곳");
+  await expect(page.getByRole("button", { name: /고기/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^기타/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "상관없음" })).toBeVisible();
+  await noOverflow(page);
+  if (testInfo.project.name === "phone") await page.screenshot({ path: `${ART}/phone_food_types.png` });
+
+  await page.getByRole("button", { name: /^한식/ }).click();
+  await page.getByRole("button", { name: /^면·라멘/ }).click();
+  await expect(page.locator('[data-food="han"]')).toHaveClass(/on/);
+  await expect(page.locator('[data-food="noodle"]')).toHaveClass(/on/);
+  await expect(page.locator('[data-food="any"]')).not.toHaveClass(/on/);
+  await page.getByRole("button", { name: "이 음식으로" }).click();
+
+  await expect(page.locator("#filterChips")).toContainText("한식");
+  await expect(page.locator("#filterChips")).toContainText("면·라멘");
+  await expect(page.locator("#foodList")).toContainText("새참당");
+  await expect(page.locator("#foodList")).toContainText("틈새라면");
+  await expect(page.locator("#foodList")).not.toContainText("맥도날드");
+  await expect(page.locator("#foodIntro")).toContainText("상암 조사");
+  const mapH = await page.locator("#map").evaluate((el) => el.getBoundingClientRect().height);
+  expect(mapH).toBeGreaterThanOrEqual(230);
+  await expect.poll(async () => page.locator("#map .leaflet-tile").evaluateAll((imgs) => imgs.filter((img) => img.complete && img.naturalWidth > 0).length), { timeout: 20000 }).toBeGreaterThan(0);
+  await noOverflow(page);
+  if (testInfo.project.name === "phone") await page.screenshot({ path: `${ART}/phone_filtered_list.png` });
+
+  await page.getByRole("button", { name: "한식 해제" }).click();
+  await expect(page.locator("#filterChips")).not.toContainText("한식");
+  await expect(page.locator("#foodList")).toContainText("틈새라면");
+  await expect(page.locator("#foodList")).not.toContainText("새참당");
+
+  await page.locator("#steps").getByRole("button", { name: "음식" }).click();
+  await page.getByRole("button", { name: /^한식/ }).click();
+  await page.getByRole("button", { name: "이 음식으로" }).click();
+  await expect(page.locator("#foodList")).toContainText("새참당");
+  await page.locator("#steps").getByRole("button", { name: "홀" }).click();
+  await page.getByRole("button", { name: "포장·배달도 OK" }).click();
+  await expect(page.locator("#cuisineMissing")).toContainText("한식");
+  await expect(page.getByRole("button", { name: /^분식/ })).toContainText("1곳");
+  await expect(page.getByRole("button", { name: /^한식/ })).toHaveCount(0);
+  await page.getByRole("button", { name: "이 음식으로" }).click();
+  await expect(page.locator("#foodList")).toContainText("이 조건에 맞는 식당이 없어요");
+  await expect(page.locator("#filterChips")).toContainText("포장·배달도 OK");
+  await expect(page.locator("#filterChips")).toContainText("한식");
+  const emptyMap = await page.locator("#map").evaluate((el) => el.getBoundingClientRect().height);
+  expect(emptyMap).toBeGreaterThanOrEqual(230);
+  await page.getByRole("button", { name: "조건 풀기" }).click();
+  await expect(page.locator("#foodList")).toContainText("틈새라면");
+  await expect(page.locator("#foodList")).toContainText("새벽집");
+  await expect(page.locator("#filterChips")).toBeEmpty();
+
+  const openCard = async (name) => {
+    const card = page.locator("#foodList .place", { hasText: name });
+    if ((await card.locator("details").getAttribute("open")) === null) await card.locator("summary").click();
+    return card;
+  };
+  await expect(await openCard("새참당")).toContainText("홀 있음");
+  await expect(page.locator("#foodList .place", { hasText: "새참당" })).not.toContainText("홀 있을 수 있음");
+  await expect(await openCard("그집김밥애라면")).toContainText("포장 후기가 있어요");
+  await expect(await openCard("새벽집")).toContainText("홀 확인 필요");
+  await noOverflow(page);
   expect(errors).toEqual([]);
 });

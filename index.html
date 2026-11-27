@@ -39,6 +39,10 @@ h3{font-size:17px;line-height:1.4;margin:16px 0 8px}
 .lead{font-size:16px;line-height:1.5;margin:0 0 12px}
 .choices{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap)}
 .choices button{min-height:88px;padding:16px 12px;border-radius:var(--radius);border:1px solid #e5e7eb;background:#fff;color:#1a1a1a;font-size:18px;font-weight:700;line-height:1.4}
+.choices button.on{background:#15803d;color:#fff;border-color:#15803d}
+.choices button .sub{display:block;margin-top:4px;font-size:14px;font-weight:600;color:#3f3f46}
+.choices button.on .sub{color:#fff}
+.skip{width:100%}
 .act,.ghost{min-height:48px;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;padding:12px 16px}
 .act{display:block;width:100%;border:0;background:#15803d;color:#fff}
 .ghost{border:1px solid #d4d4d8;background:#fff;color:#1a1a1a}
@@ -78,7 +82,8 @@ a{color:#1a4fbf}
 .menu-row input{flex:1;min-width:0}
 .menu-row .ghost{flex:0 0 auto;min-width:72px}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
-.chip{display:inline-flex;align-items:center;gap:4px;min-height:44px;background:#e7f0ee;border-radius:999px;padding:4px 4px 4px 12px;font-size:15px}
+.chips:empty{display:none}
+.chip{display:inline-flex;align-items:center;gap:4px;min-height:44px;background:#fff;border:1px solid #e5e7eb;color:#1a1a1a;border-radius:999px;padding:4px 4px 4px 12px;font-size:14px}
 .chip button{border:0;background:transparent;min-width:44px;min-height:44px;font-size:18px;cursor:pointer}
 .list,#afterList,#logList{display:flex;flex-direction:column;gap:var(--gap)}
 .dock{position:fixed;left:50%;transform:translateX(-50%);bottom:0;z-index:30;width:min(480px,100%);background:#fff;border-top:1px solid #e5e7eb;padding:8px var(--pad) calc(8px + env(safe-area-inset-bottom))}
@@ -142,10 +147,33 @@ details.more summary{min-height:44px;display:flex;align-items:center;font-size:1
 <button type="button" class="act" id="toFood">이 위치로 식당 보기</button>
 </div>
 </section>
+<section id="step-hall" hidden>
+<div class="card">
+<h2>어떻게 드실래요?</h2>
+<p class="lead">앉아서 먹을지 정해 주세요.</p>
+<div class="choices" id="hallChoices">
+<button type="button" data-hall="dine">홀에서 먹기</button>
+<button type="button" data-hall="flex">포장·배달도 OK</button>
+<button type="button" data-hall="any">상관없음</button>
+</div>
+<button type="button" class="ghost skip" id="hallSkip">건너뛰기</button>
+</div>
+</section>
+<section id="step-cuisine" hidden>
+<div class="card">
+<h2>어떤 음식?</h2>
+<p class="lead">여러 개 고를 수 있어요.</p>
+<div class="choices" id="cuisineChoices"></div>
+<p id="cuisineMissing" class="note" hidden></p>
+<button type="button" class="act" id="cuisineGo">이 음식으로</button>
+<button type="button" class="ghost skip" id="cuisineSkip">건너뛰기</button>
+</div>
+</section>
 <section id="step-food" hidden>
 <div class="card">
 <h2>식당</h2>
 <p id="foodIntro" class="note"></p>
+<div id="filterChips" class="chips"></div>
 <label class="visit"><input type="checkbox" class="hide-visited"> 가본 곳 숨기기</label>
 <div class="map-frame"><div id="map" role="application" aria-label="출발지와 식당 지도"></div></div>
 <p id="mapMsg" class="note" hidden>지도 타일을 불러오지 못했어요. 인터넷 연결을 확인해 주세요.</p>
@@ -189,10 +217,12 @@ details.more summary{min-height:44px;display:flex;align-items:center;font-size:1
 <script src="data.js"></script>
 <script>
 const PARTY_LABEL={"1":"1명 (혼밥)","2":"2명","3-4":"3~4명","5+":"5명 이상"};
-const STEPS=[["party","인원"],["place","위치"],["food","식당"],["after","식후"],["course","코스"],["summary","요약"]];
+const STEPS=[["party","인원"],["place","위치"],["hall","홀"],["cuisine","음식"],["food","식당"],["after","식후"],["course","코스"],["summary","요약"]];
+const FOOD_LABEL={han:"한식",jp:"일식",cn:"중식",west:"양식",snack:"분식",meat:"고기·구이",noodle:"면·라멘",fast:"패스트푸드",other:"기타"};
+const FOOD_ORDER=["han","jp","cn","west","snack","meat","noodle","fast","other"];
 const GEOERR={1:"위치 권한이 거부됐어요. 주소창 왼쪽 자물쇠(ⓘ) → 권한 → 위치를 '허용'으로 바꾸거나, 아래에 주소를 입력하세요. 출발지는 누리꿈스퀘어로 둡니다.",2:"현재 위치를 확인할 수 없어요(GPS/네트워크 위치 꺼짐). 휴대폰 설정에서 '위치'를 켜거나 주소를 입력하세요. 출발지는 누리꿈스퀘어로 둡니다.",3:"위치 확인 시간이 초과됐어요. 실내라면 잠시 후 다시 시도하거나 주소를 입력하세요. 출발지는 누리꿈스퀘어로 둡니다."};
 const SOLO=new Set(["분식/김밥","면/라면","덮밥/돈가스","버거/샌드위치","초밥","한그릇/백반","패스트푸드","간편식"]);
-const state={party:null,step:"party",origin:null,rest:null,after:null,course:null,rainy:false,weatherMsg:"",forceOutdoor:false,sangam:null,osmR:null,osmS:null};
+const state={party:null,step:"party",origin:null,hall:"any",foods:[],rest:null,after:null,course:null,rainy:false,weatherMsg:"",forceOutdoor:false,sangam:null,osmR:null,osmS:null};
 let map,layer,SANGAM;
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
 function hav(a,b,c,d){const R=6371000,p=Math.PI/180,x=Math.sin((c-a)*p/2)**2+Math.cos(a*p)*Math.cos(c*p)*Math.sin((d-b)*p/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
@@ -274,10 +304,12 @@ function renderSteps(){
 function go(step,resetAfter){
  state.step=step;
  if(resetAfter){state.rest=null;state.after=null;state.course=null}
- ["party","place","food","after","course","summary","log"].forEach(s=>document.getElementById("step-"+s).hidden=s!==step);
+ ["party","place","hall","cuisine","food","after","course","summary","log"].forEach(s=>document.getElementById("step-"+s).hidden=s!==step);
  renderSteps();
  syncDock();
  if(step==="place")paintOrigin();
+ if(step==="hall")paintHall();
+ if(step==="cuisine")renderCuisine();
  if(step==="food")renderFood();
  if(step==="after")renderAfter();
  if(step==="course")renderCourse();
@@ -294,12 +326,33 @@ function setOrigin(lat,lng,name,address){
 document.getElementById("partyChoices").onclick=e=>{
  const b=e.target.closest("[data-party]");if(!b)return;
  state.party=b.dataset.party;
+ state.hall="any";state.foods=[];
  state.rest=null;state.after=null;state.course=null;
  go("place");
 };
-document.getElementById("toFood").onclick=()=>go("food");
+document.getElementById("toFood").onclick=()=>go("hall");
+function paintHall(){
+ document.querySelectorAll("#hallChoices button").forEach(b=>b.classList.toggle("on",b.dataset.hall===state.hall));
+}
+document.getElementById("hallChoices").onclick=e=>{
+ const b=e.target.closest("[data-hall]");if(!b)return;
+ state.hall=b.dataset.hall;
+ state.rest=null;state.after=null;state.course=null;
+ state.listMore=8;
+ go("cuisine");
+};
+document.getElementById("hallSkip").onclick=()=>{state.hall="any";state.listMore=8;go("cuisine")};
+document.getElementById("cuisineChoices").onclick=e=>{
+ const b=e.target.closest("[data-food]");if(!b)return;
+ const key=b.dataset.food;
+ if(key==="any")state.foods=[];
+ else state.foods=state.foods.includes(key)?state.foods.filter(k=>k!==key):state.foods.concat(key);
+ renderCuisine();
+};
+document.getElementById("cuisineGo").onclick=()=>{state.listMore=8;go("food")};
+document.getElementById("cuisineSkip").onclick=()=>{state.foods=[];state.listMore=8;go("food")};
 document.getElementById("dockBack").onclick=()=>{
- const prev={place:"party",food:"place",after:"food",course:"after",summary:"course",log:state.returnStep||"party"};
+ const prev={place:"party",hall:"place",cuisine:"hall",food:"cuisine",after:"food",course:"after",summary:"course",log:state.returnStep||"party"};
  go(prev[state.step]||"party");
 };
 function syncDock(){
@@ -445,9 +498,72 @@ async function loadOsm(){
  if(!state.osmR){const r=await fetch("restaurants.json");const j=await r.json();state.osmR=j}
  if(!state.osmS){const r=await fetch("stores.json");const j=await r.json();state.osmS=j.s||[]}
 }
-async function restaurants(){
+function foodKeys(p){
+ const c=p.category||"";
+ if(!c)return ["other"];
+ if(/푸드코트/.test(c)){
+  const keys=[];
+  if(/한식/.test(c))keys.push("han");
+  if(/중식/.test(c))keys.push("cn");
+  return keys.length?keys:["other"];
+ }
+ const keys=[];
+ const add=k=>{if(!keys.includes(k))keys.push(k)};
+ if(/갈비|구이|숯불|고기/.test(c))add("meat");
+ if(/분식|김밥/.test(c))add("snack");
+ if(/라면|라멘|쌀국수|국수|우동|면\/라면/.test(c))add("noodle");
+ if(/일식|이자카야|초밥|오마카세|샤브|돈가스/.test(c))add("jp");
+ if(/중식|짜장|짬뽕/.test(c))add("cn");
+ if(/양식|파스타|피자|이탈리|핀사|로마/.test(c))add("west");
+ if(/한식|한정식|곰탕|두부|백반|덮밥|한그릇/.test(c))add("han");
+ if(/버거|샌드위치|패스트푸드/.test(c))add("fast");
+ if(/간편식|태국|아시안/.test(c))add("other");
+ if(!keys.length)add("other");
+ return keys;
+}
+function hallInfo(p){
+ const takeTag=String(p.takeaway??"").toLowerCase();
+ const seatTag=String(p.indoor_seating??p.indoorSeating??"").toLowerCase();
+ let hall="unknown", estimated=false, take=takeTag==="yes"||takeTag==="only";
+ if(takeTag==="only"){hall="takeaway";estimated=p.src==="osm"}
+ if(seatTag==="yes"&&hall!=="takeaway"){hall="yes";estimated=true}
+ if(seatTag==="no"&&take)hall="takeaway";
+ if(/포장|배달|테이크아웃/.test(p.notes||""))take=true;
+ if(hall==="unknown"){
+  const blob=`${p.category||""}\n${p.notes||""}`.replace(/캐치테이블/g,"");
+  if(/인석|좌석|다찌|룸|테이블|단체석|혼밥석|소파|\d+\s*석/.test(blob))hall="yes";
+  else if(p.src==="osm"){
+   hall=p.category==="패스트푸드"?"maybe":"yes";
+   estimated=true;
+  }else if(/혼밥|회식|예약|데이트|모임/.test(p.notes||"")){hall="maybe";estimated=true}
+ }
+ return {hall,estimated,take};
+}
+function hallLabel(p){
+ const h=hallInfo(p);
+ const bits=[];
+ if(h.hall==="yes")bits.push(h.estimated?"홀 있음 · 추정":"홀 있음");
+ else if(h.hall==="maybe")bits.push("홀 있을 수 있음 · 추정");
+ else if(h.hall==="takeaway")bits.push(h.estimated?"포장 전용 · 추정":"포장 전용");
+ else bits.push("홀 확인 필요");
+ if(h.take&&h.hall!=="takeaway")bits.push("포장 후기가 있어요");
+ return bits.join(" · ");
+}
+function passHall(p){
+ if(!state.hall||state.hall==="any")return true;
+ const h=hallInfo(p);
+ if(state.hall==="dine")return h.hall==="yes"||h.hall==="maybe";
+ if(state.hall==="flex")return h.take||h.hall==="takeaway";
+ return true;
+}
+function passFood(p){
+ if(!state.foods||!state.foods.length)return true;
+ const keys=foodKeys(p);
+ return state.foods.some(k=>keys.includes(k));
+}
+async function loadCandidates(){
  if(nearNuri()){
-  return arrange(SANGAM.places.filter(p=>p.type==="restaurant"&&p.partySizes.includes(state.party)).map(p=>({...p,d:distOf(p,state.origin),src:"sangam"})));
+  return SANGAM.places.filter(p=>p.type==="restaurant"&&p.partySizes.includes(state.party)).map(p=>({...p,d:distOf(p,state.origin),src:"sangam"}));
  }
  await loadOsm();
  const cats=state.osmR.cats||[];
@@ -460,7 +576,27 @@ async function restaurants(){
   if(d>1500)continue;
   out.push({name:row[3],type:"restaurant",category:cat,lat:row[0],lng:row[1],hours:"",address:"",sourceUrl:"https://www.openstreetmap.org/copyright",notes:"",fitLabel:fit.label,d,src:"osm",walkMin:walkMinFrom(d)});
  }
- return arrange(out).slice(0,40);
+ return out;
+}
+async function restaurants(){
+ const rows=(await loadCandidates()).filter(p=>passHall(p)&&passFood(p));
+ const ordered=arrange(rows);
+ return nearNuri()?ordered:ordered.slice(0,40);
+}
+async function renderCuisine(){
+ const pool=(await loadCandidates()).filter(passHall);
+ const counts={};
+ for(const p of pool)for(const k of foodKeys(p))counts[k]=(counts[k]||0)+1;
+ const buttons=FOOD_ORDER.filter(k=>counts[k]).map(k=>{
+  const on=state.foods.includes(k);
+  return `<button type="button" data-food="${k}" class="${on?"on":""}" aria-pressed="${on}">${FOOD_LABEL[k]}<span class="sub">${counts[k]}곳</span></button>`;
+ }).join("");
+ const any=!state.foods.length;
+ document.getElementById("cuisineChoices").innerHTML=buttons+`<button type="button" data-food="any" class="${any?"on":""}" aria-pressed="${any}">상관없음</button>`;
+ const missing=state.foods.filter(k=>!counts[k]).map(k=>FOOD_LABEL[k]);
+ const miss=document.getElementById("cuisineMissing");
+ miss.hidden=!missing.length;
+ miss.textContent=missing.length?`고른 ${missing.join(", ")}은 이 조건에 없어요.`:"";
 }
 function shortTag(p){
  if(p.fitLabel&&p.fitLabel.includes("단체"))return "단체석";
@@ -484,6 +620,7 @@ function placeCard(p,buttonLabel){
   <p class="note">${esc(st.text)}</p>
   ${p.hours?`<p class="note">${esc(p.hours)}</p>`:""}
   ${p.address?`<p class="addr">${esc(p.address)}</p>`:""}
+  ${(p.type==="restaurant"||!p.type)?`<p class="note">${esc(hallLabel(p))}</p>`:""}
   ${p.notes?`<p class="note">${esc(p.notes)}</p>`:""}
   ${p.latlngNote?`<p class="note">${esc(p.latlngNote)}</p>`:""}
   ${price}
@@ -537,17 +674,43 @@ function windowed(list){
  const n=state.listMore||8;
  return {shown:fresh.slice(0,n).concat(old),more:fresh.length>n};
 }
+function paintFilterChips(){
+ const chips=[];
+ if(state.hall==="dine")chips.push(["hall","홀에서 먹기"]);
+ if(state.hall==="flex")chips.push(["hall","포장·배달도 OK"]);
+ for(const k of state.foods||[])chips.push(["food:"+k,FOOD_LABEL[k]||k]);
+ const box=document.getElementById("filterChips");
+ box.innerHTML=chips.map(([id,label])=>`<span class="chip">${esc(label)} <button type="button" class="chip-x" data-chip="${esc(id)}" aria-label="${esc(label)} 해제">×</button></span>`).join("");
+ box.querySelectorAll(".chip-x").forEach(b=>b.onclick=()=>{
+  const id=b.dataset.chip;
+  if(id==="hall")state.hall="any";
+  if(id.startsWith("food:"))state.foods=state.foods.filter(k=>k!==id.slice(5));
+  state.listMore=8;
+  renderFood();
+ });
+}
+function loosenFilters(){
+ state.hall="any";
+ state.foods=[];
+ state.listMore=8;
+ renderFood();
+}
 async function renderFood(){
  const all=await restaurants();
  const view=windowed(all.filter(p=>!state.log.hideVisited||!isVisited(p)));
  const intro=document.getElementById("foodIntro");
  intro.textContent=nearNuri()?`가까운 식당 ${all.length}곳 · 상암 조사`:`가까운 식당 ${all.length}곳 · 지도 자료, 인원은 추정`;
+ paintFilterChips();
  const root=document.getElementById("foodList");
- root.innerHTML=view.shown.map(p=>placeCard(p,"여기로 정하기")).join("")||`<div class="card">이 인원에 맞는 식당이 없어요.</div>`;
+ const filtered=state.hall&&state.hall!=="any"||(state.foods&&state.foods.length);
+ const empty=filtered?`<div class="card"><p>이 조건에 맞는 식당이 없어요.</p><button type="button" class="act" id="loosen">조건 풀기</button></div>`:`<div class="card">이 인원에 맞는 식당이 없어요.</div>`;
+ root.innerHTML=view.shown.map(p=>placeCard(p,"여기로 정하기")).join("")||empty;
  if(view.more)root.insertAdjacentHTML("beforeend",`<button type="button" class="ghost" id="moreFood">더 보기</button>`);
  root.querySelectorAll(".pick").forEach((b,i)=>b.onclick=()=>{state.rest=view.shown[i];state.after=null;state.course=null;go("after")});
  const more=document.getElementById("moreFood");
  if(more)more.onclick=()=>{state.listMore=(state.listMore||8)+8;renderFood()};
+ const loosen=document.getElementById("loosen");
+ if(loosen)loosen.onclick=()=>loosenFilters();
  bindVisit(root,view.shown,()=>renderFood());
  syncHide();
  drawFoodMap(view.shown);
