@@ -83,10 +83,22 @@ textarea.logbox{min-height:120px;font-size:15px}
 a{color:#1a4fbf}
 :focus-visible{outline:3px solid #1a3e8a;outline-offset:2px}
 .pin-wrap{background:transparent;border:0}
-.pin{display:block;width:16px;height:16px;margin:3px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #222}
-.pin.me{border-radius:4px}
-.pin.walk{background:#fff!important;box-shadow:0 0 0 3px #15803d}
-.pin.visited{opacity:.4;filter:grayscale(1)}
+.pin{position:relative;display:block;width:28px;height:28px}
+.pin .mk{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 3px #00000055;position:relative}
+.pin .mk svg,.legend .mk svg{width:16px;height:16px;display:block}
+.pin .num{position:absolute;top:-6px;right:-6px;min-width:16px;height:16px;padding:0 3px;border-radius:8px;background:#111;color:#fff;font-size:11px;font-weight:800;line-height:16px;text-align:center}
+.pin-label{position:absolute;left:34px;top:2px;max-width:108px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:2px 6px;font-size:13px;font-weight:700;color:#111;line-height:1.3}
+.pin.visited .mk{background:#737373!important}
+.legend{display:flex;flex-wrap:wrap;gap:6px 10px;margin-top:8px}
+.legend span{display:inline-flex;align-items:center;gap:4px;min-height:28px;font-size:13px;line-height:1.3;color:#1a1a1a}
+.legend .mk{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex:0 0 22px}
+.legend .mk svg{width:14px;height:14px}
+.mk.start{background:#1d4ed8}
+.mk.eat{background:#15803d}
+.mk.cafe{background:#0f766e}
+.mk.cake{background:#b45309}
+.mk.walk{background:#1e3a8a}
+.route-note{margin:8px 0 0;font-size:13px;line-height:1.45;color:#3f3f46}
 .leaflet-popup-content{margin:10px 12px;font-size:14px;line-height:1.4;color:#1a1a1a}
 .leaflet-popup-content b{font-size:15px}
 .place.visited{opacity:.5;filter:grayscale(.85)}
@@ -190,7 +202,9 @@ details.more summary{min-height:44px;display:flex;align-items:center;font-size:1
 <label class="visit"><input type="checkbox" class="hide-visited"> 가본 곳 숨기기</label>
 <div class="map-frame"><div id="map" role="application" aria-label="출발지와 식당 지도"></div></div>
 <p id="mapMsg" class="note" hidden>지도 타일을 불러오지 못했어요. 인터넷 연결을 확인해 주세요.</p>
-<p class="map-attr">지도 © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 기여자</p>
+<p class="map-attr">지도 © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> France</p>
+<div class="legend" data-legend></div>
+<p id="mapRoute" class="route-note"></p>
 </div>
 <div id="foodList" class="list"></div>
 </section>
@@ -200,7 +214,9 @@ details.more summary{min-height:44px;display:flex;align-items:center;font-size:1
 <p id="afterIntro" class="note"></p>
 <div class="map-frame"><div id="afterMap" role="application" aria-label="식당과 식후 장소 지도"></div></div>
 <p id="afterMapMsg" class="note" hidden>지도 타일을 불러오지 못했어요. 인터넷 연결을 확인해 주세요.</p>
-<p class="map-attr">지도 © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 기여자</p>
+<p class="map-attr">지도 © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> France</p>
+<div class="legend" data-legend></div>
+<p id="afterRoute" class="route-note"></p>
 </div>
 <div id="afterList"></div>
 </section>
@@ -218,7 +234,9 @@ details.more summary{min-height:44px;display:flex;align-items:center;font-size:1
 <h2>오늘의 코스</h2>
 <div class="map-frame"><div id="summaryMap" role="application" aria-label="식당, 식후, 산책 시작 지도"></div></div>
 <p id="summaryMapMsg" class="note" hidden>지도 타일을 불러오지 못했어요. 인터넷 연결을 확인해 주세요.</p>
-<p class="map-attr">지도 © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> 기여자</p>
+<p class="map-attr">지도 © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> France</p>
+<div class="legend" data-legend></div>
+<p id="summaryRoute" class="route-note"></p>
 <div id="summaryBody"></div>
 <label for="shareUrl">공유 링크</label>
 <input id="shareUrl" readonly>
@@ -239,7 +257,7 @@ const FOOD_LABEL={han:"한식",jp:"일식",cn:"중식",west:"양식",snack:"분�
 const FOOD_ORDER=["han","jp","cn","west","snack","meat","noodle","fast","other"];
 const GEOERR={1:"위치 권한이 거부됐어요. 주소창 왼쪽 자물쇠(ⓘ) → 권한 → 위치를 '허용'으로 바꾸거나, 아래에 주소를 입력하세요. 출발지는 누리꿈스퀘어로 둡니다.",2:"현재 위치를 확인할 수 없어요(GPS/네트워크 위치 꺼짐). 휴대폰 설정에서 '위치'를 켜거나 주소를 입력하세요. 출발지는 누리꿈스퀘어로 둡니다.",3:"위치 확인 시간이 초과됐어요. 실내라면 잠시 후 다시 시도하거나 주소를 입력하세요. 출발지는 누리꿈스퀘어로 둡니다."};
 const SOLO=new Set(["분식/김밥","면/라면","덮밥/돈가스","버거/샌드위치","초밥","한그릇/백반","패스트푸드","간편식"]);
-const state={party:null,step:"party",origin:null,hall:"any",foods:[],rest:null,after:null,course:null,rainy:false,weatherMsg:"",forceOutdoor:false,sangam:null,osmR:null};
+const state={party:null,step:"party",origin:null,hall:"any",foods:[],rest:null,after:null,course:null,focusRest:"",focusAfter:"",rainy:false,weatherMsg:"",forceOutdoor:false,sangam:null,osmR:null};
 let SANGAM;
 const maps={};
 let foodAll=[],afterAll=[];
@@ -346,7 +364,7 @@ document.getElementById("partyChoices").onclick=e=>{
  const b=e.target.closest("[data-party]");if(!b)return;
  state.party=b.dataset.party;
  state.hall="any";state.foods=[];
- state.rest=null;state.after=null;state.course=null;
+ state.rest=null;state.after=null;state.course=null;state.focusRest="";state.focusAfter="";
  go("place");
 };
 document.getElementById("toFood").onclick=()=>go("hall");
@@ -474,7 +492,22 @@ function arrange(list){
  });
  return state.log.hideVisited?rows.filter(p=>!isVisited(p)):rows;
 }
-function pin(cls,color,visited){return L.divIcon({className:"pin-wrap",html:`<span class="pin ${cls}${visited?" visited":""}" style="background:${color}"></span>`,iconSize:[22,22],iconAnchor:[11,11]})}
+const ICONS={
+ start:'<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="6.5" r="2.2" fill="#fff"/><path d="M7.5 20.5v-5.2l2.2-2 1.6 1.6 2.2-3.2 2.4 1.5.8 3.2M9.2 11.2l-1.8 1.6" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+ eat:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3.5v6.5M10.5 3.5v6.5M8 6.5h2.5M9.2 10v10M15.5 3.5c1.8 2.4 1.8 4.6 0 6.6V20" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/></svg>',
+ cafe:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9h8.5v4.5a3.5 3.5 0 0 1-3.5 3.5H9.5A3.5 3.5 0 0 1 6 13.5V9zM14.5 10.2h2.2a2.2 2.2 0 0 1 0 4.4H14.5M8 5c.3.8.3 1.3 0 2.1M11 5c.3.8.3 1.3 0 2.1" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/></svg>',
+ cake:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 14h15v4.2a1.8 1.8 0 0 1-1.8 1.8H6.3a1.8 1.8 0 0 1-1.8-1.8V14zM4.5 14c1-.9 1.8-.9 2.8 0s1.8.9 2.8 0 1.8-.9 2.8 0 1.8.9 2.8 0 1.8-.9 2.8 0M12 10.2V13M12 7.4a1.1 1.1 0 1 0 0-2.2 1.1 1.1 0 0 0 0 2.2z" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>',
+ walk:'<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="14" cy="5" r="1.7" fill="#fff"/><path d="M11.2 20.5l1.4-5.2-2.2-2.1 2.2-3.2 3.1 1.2 1 3.1M9.6 11.2l-2.2 2" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+};
+function paintLegends(){
+ const html=`<span><i class="mk start">${ICONS.start}</i>출발</span><span><i class="mk eat">${ICONS.eat}</i>식당</span><span><i class="mk cafe">${ICONS.cafe}</i>카페</span><span><i class="mk cake">${ICONS.cake}</i>디저트</span><span><i class="mk walk">${ICONS.walk}</i>산책</span>`;
+ document.querySelectorAll("[data-legend]").forEach(el=>{el.innerHTML=html});
+}
+paintLegends();
+function markerIcon(cls,kind,visited,num,label){
+ const html=`<span class="pin ${cls}${visited?" visited":""}"><span class="mk ${kind}">${ICONS[kind]||""}${num?`<b class="num">${num}</b>`:""}</span>${label?`<span class="pin-label">${esc(label)}</span>`:""}</span>`;
+ return L.divIcon({className:"pin-wrap",html,iconSize:[28,28],iconAnchor:[14,14]});
+}
 function cardWalk(p){
  if(p.type==="cafe"||p.type==="dessert")return walkMinFrom(p.d||0);
  if(p.src==="sangam"&&state.origin&&hav(state.origin.lat,state.origin.lng,SANGAM.origin.lat,SANGAM.origin.lng)<200&&p.walkMin)return p.walkMin;
@@ -497,7 +530,7 @@ function ensureMap(id){
  if(!el||el.clientHeight<40)return null;
  if(maps[id]){refreshMap(id);return maps[id]}
  const map=L.map(el,{zoomControl:true}).setView([state.origin.lat,state.origin.lng],15);
- const tiles=L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'});
+ const tiles=L.tileLayer("https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png",{subdomains:"abc",maxZoom:20,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> France'});
  const msgId=id==="map"?"mapMsg":id+"Msg";
  let ok=0,bad=0;
  tiles.on("tileload",()=>{ok++;const msg=document.getElementById(msgId);if(msg)msg.hidden=true});
@@ -505,16 +538,80 @@ function ensureMap(id){
  tiles.addTo(map);
  map.attributionControl.setPrefix(false);
  const layer=L.layerGroup().addTo(map);
- maps[id]={map,layer,byId:new Map()};
+ maps[id]={map,layer,byId:new Map(),routeLayer:L.layerGroup().addTo(map),routeSeq:0};
  refreshMap(id);
  return maps[id];
 }
-function addMarker(rec,lat,lng,cls,color,title,html,key,visited){
- const m=L.marker([lat,lng],{icon:pin(cls,color,visited),title:title||"",keyboard:!!key});
- if(html)m.bindPopup(html,{maxWidth:220,autoPanPadding:[12,12]});
+function addMarker(rec,lat,lng,spec){
+ const m=L.marker([lat,lng],{icon:markerIcon(spec.cls,spec.kind,spec.visited,spec.num,spec.label),title:spec.title||"",keyboard:!!spec.key});
+ if(spec.html)m.bindPopup(spec.html,{maxWidth:220,autoPanPadding:[12,12]});
  m.addTo(rec.layer);
- if(key)rec.byId.set(key,m);
+ if(spec.key)rec.byId.set(spec.key,m);
  return m;
+}
+const routeCache=new Map();
+function legKey(a,b){
+ const f=n=>Number(n).toFixed(5);
+ return `${f(a.lat)},${f(a.lng)}>${f(b.lat)},${f(b.lng)}`;
+}
+async function footLeg(a,b){
+ const key=legKey(a,b);
+ if(routeCache.has(key))return routeCache.get(key);
+ const straightM=Math.round(hav(a.lat,a.lng,b.lat,b.lng));
+ const straight={ok:false,coords:[[a.lat,a.lng],[b.lat,b.lng]],meters:straightM,minutes:walkMinFrom(straightM)};
+ const ctrl=new AbortController();
+ const timer=setTimeout(()=>ctrl.abort(),8000);
+ try{
+  const url=`https://routing.openstreetmap.de/routed-foot/route/v1/foot/${a.lng},${a.lat};${b.lng},${b.lat}?overview=full&geometries=geojson`;
+  const res=await fetch(url,{signal:ctrl.signal});
+  if(!res.ok)throw new Error(String(res.status));
+  const j=await res.json();
+  const route=j.routes&&j.routes[0];
+  const coords=route&&route.geometry&&route.geometry.coordinates;
+  if(!coords||coords.length<2)throw new Error("empty");
+  const leg={ok:true,coords:coords.map(([lng,lat])=>[lat,lng]),meters:Math.round(route.distance),minutes:Math.max(1,Math.round(route.duration/60))};
+  routeCache.set(key,leg);
+  return leg;
+ }catch(e){
+  routeCache.set(key,straight);
+  return straight;
+ }finally{clearTimeout(timer)}
+}
+function routeNote(id){return document.getElementById(id==="map"?"mapRoute":id==="afterMap"?"afterRoute":"summaryRoute")}
+const ROUTE_COLORS=["#1d4ed8","#15803d","#b45309"];
+function clearRoutes(id){
+ const rec=maps[id];
+ if(!rec)return;
+ rec.routeSeq=(rec.routeSeq||0)+1;
+ if(rec.routeLayer)rec.routeLayer.clearLayers();
+ const note=routeNote(id);
+ if(note)note.textContent="";
+}
+async function drawRoutes(id,legs){
+ const rec=maps[id];
+ if(!rec)return [];
+ const seq=++rec.routeSeq;
+ if(!rec.routeLayer)rec.routeLayer=L.layerGroup().addTo(rec.map);
+ rec.routeLayer.clearLayers();
+ const note=routeNote(id);
+ if(!legs||!legs.length){if(note)note.textContent="";return []}
+ if(note)note.textContent="길 찾는 중…";
+ const results=await Promise.all(legs.map(leg=>footLeg(leg.a,leg.b)));
+ if(!maps[id]||maps[id]!==rec||rec.routeSeq!==seq)return results;
+ rec.routeLayer.clearLayers();
+ results.forEach((leg,i)=>{
+  L.polyline(leg.coords,{color:ROUTE_COLORS[i%ROUTE_COLORS.length],weight:5,opacity:.92,dashArray:leg.ok?null:"8 8"}).addTo(rec.routeLayer);
+ });
+ if(note){
+  note.textContent=legs.map((leg,i)=>{
+   const r=results[i];
+   return `${i+1} ${leg.label} ${r.meters}m · ${r.minutes}분${r.ok?"":" · 직선(경로 불러오기 실패)"}`;
+  }).join(" · ");
+ }
+ const bounds=L.latLngBounds([]);
+ results.forEach(leg=>leg.coords.forEach(c=>bounds.extend(c)));
+ if(bounds.isValid()&&!rec.map.getBounds().contains(bounds))rec.map.fitBounds(rec.map.getBounds().extend(bounds),{padding:[28,28],maxZoom:16});
+ return results;
 }
 function drawMap(id,places,extra){
  const rec=ensureMap(id);
@@ -525,27 +622,32 @@ function drawMap(id,places,extra){
  const bounds=[];
  const put=(lat,lng)=>{if(Number.isFinite(lat)&&Number.isFinite(lng))bounds.push([lat,lng])};
  const o=state.origin;
+ const focus=extra&&extra.focusId;
  if(!extra||!extra.skipOrigin){
-  addMarker(rec,o.lat,o.lng,"me","#15803d","출발",popupHtml("출발",o.name),"origin",false);
+  addMarker(rec,o.lat,o.lng,{cls:"me",kind:"start",title:"출발",html:popupHtml("출발",o.name),key:"origin",label:"출발"});
   put(o.lat,o.lng);
  }
  if(extra&&extra.chosen){
   const c=extra.chosen;
-  addMarker(rec,c.lat,c.lng,"chosen","#1a1a1a",c.name,popupHtml(c.name,"고른 식당"),"chosen",false);
+  addMarker(rec,c.lat,c.lng,{cls:"chosen",kind:"eat",num:1,label:c.name,title:c.name,html:popupHtml(c.name,"고른 식당"),key:"chosen"});
   put(c.lat,c.lng);
  }
  (places||[]).forEach(p=>{
-  const m=addMarker(rec,p.lat,p.lng,"place","#15803d",p.name,popupHtml(p.name,`도보 약 ${cardWalk(p)}분`),placeId(p),isVisited(p));
+  const selected=focus&&placeId(p)===focus;
+  const kind=p.type==="dessert"?"cake":p.type==="cafe"?"cafe":"eat";
+  const m=addMarker(rec,p.lat,p.lng,{cls:"place "+kind,kind,num:selected?(kind==="eat"?1:2):0,label:selected?p.name:"",title:p.name,html:popupHtml(p.name,`도보 약 ${cardWalk(p)}분`),key:placeId(p),visited:isVisited(p)});
   m.on("click",()=>revealPlace(id,p));
   put(p.lat,p.lng);
  });
  (extra&&extra.points||[]).forEach(pt=>{
-  addMarker(rec,pt.lat,pt.lng,pt.cls,pt.color,pt.name,popupHtml(pt.name,pt.line),pt.key,false);
+  addMarker(rec,pt.lat,pt.lng,{cls:pt.cls,kind:pt.kind,num:pt.num,label:pt.name,title:pt.name,html:popupHtml(pt.name,pt.line),key:pt.key});
   put(pt.lat,pt.lng);
  });
- if(extra&&extra.line&&extra.line.length>1)L.polyline(extra.line,{color:"#15803d",weight:4,opacity:.9}).addTo(rec.layer);
+ if(extra&&extra.routes)drawRoutes(id,extra.routes);
+ else clearRoutes(id);
  if(bounds.length===1)rec.map.setView(bounds[0],16);
  else if(bounds.length)rec.map.fitBounds(bounds,{padding:[36,36],maxZoom:16});
+ if(focus&&rec.byId.get(focus))rec.map.panTo(rec.byId.get(focus).getLatLng(),{animate:false});
  refreshMap(id);
  setTimeout(()=>refreshMap(id),80);
  setTimeout(()=>refreshMap(id),300);
@@ -560,16 +662,28 @@ function highlightPlace(mapId,p){
  const marker=rec&&rec.byId.get(placeId(p));
  if(marker){closePopups(rec);marker.openPopup()}
 }
+function foodRouteExtra(){
+ const p=foodAll.find(x=>placeId(x)===state.focusRest);
+ return {focusId:state.focusRest,routes:p?[{a:state.origin,b:p,label:"출발→식당"}]:[]};
+}
+function afterRouteExtra(){
+ const p=afterAll.find(x=>placeId(x)===state.focusAfter);
+ return {chosen:state.rest,focusId:state.focusAfter,routes:p&&state.rest?[{a:state.rest,b:p,label:"식당→식후"}]:[]};
+}
 function revealPlace(mapId,p){
+ if(mapId==="map")state.focusRest=placeId(p);
+ if(mapId==="afterMap")state.focusAfter=placeId(p);
  if(mapId==="map"){
   const fresh=foodAll.filter(x=>!isVisited(x));
   const idx=fresh.findIndex(x=>placeId(x)===placeId(p));
   if(idx>=(state.listMore||8)){state.listMore=idx+1;renderFood().then(()=>highlightPlace(mapId,p));return}
+  drawMap("map",foodAll,foodRouteExtra());
  }
  if(mapId==="afterMap"){
   const fresh=afterAll.filter(x=>x.type===p.type&&!isVisited(x));
   const idx=fresh.findIndex(x=>placeId(x)===placeId(p));
   if(idx>=(state.afterMore||8)){state.afterMore=idx+1;renderAfter().then(()=>highlightPlace(mapId,p));return}
+  drawMap("afterMap",afterAll,afterRouteExtra());
  }
  highlightPlace(mapId,p);
 }
@@ -578,8 +692,10 @@ function bindCardPan(root,mapId,list){
   card.onclick=e=>{
    if(e.target.closest("button,a,input,summary,label,textarea"))return;
    const p=list.find(x=>placeId(x)===card.dataset.id);
+   if(!p)return;
+   if(mapId==="map"||mapId==="afterMap"){revealPlace(mapId,p);return}
    const rec=maps[mapId];
-   const marker=p&&rec&&rec.byId.get(placeId(p));
+   const marker=rec&&rec.byId.get(placeId(p));
    if(!marker)return;
    closePopups(rec);
    rec.map.panTo(marker.getLatLng(),{animate:false});
@@ -843,7 +959,7 @@ async function renderFood(){
  bindCardPan(root, "map", view.shown);
  syncHide();
  foodAll=all.filter(p=>!state.log.hideVisited||!isVisited(p));
- drawMap("map", foodAll);
+ drawMap("map", foodAll, foodRouteExtra());
 }
 async function afterPlaces(){
  const from=state.rest;
@@ -867,7 +983,7 @@ async function renderAfter(){
  const moreBtn=document.getElementById("moreAfter");
  if(moreBtn)moreBtn.onclick=()=>{state.afterMore=(state.afterMore||8)+8;renderAfter()};
  syncHide();
- drawMap("afterMap", afterAll, {chosen:state.rest});
+ drawMap("afterMap", afterAll, afterRouteExtra());
 }
 function capGroup(rows){
  const ordered=rows.slice().sort((a,b)=>a.d-b.d);
@@ -992,12 +1108,18 @@ function renderSummary(){
   <h3>산책/액티비티</h3><p>${esc(course.name)} · 약 ${cw}분 <span class="badge est">추정</span></p>
   <p class="note">식당 → 식후 → 산책 시작. ${esc(SANGAM.walkMinNote)}</p>`;
  const walk=course.kind==="place"&&Number.isFinite(+course.lat)?{lat:+course.lat,lng:+course.lng,name:course.name,line:`약 ${cw}분`}:{lat:state.origin.lat,lng:state.origin.lng,name:course.start||state.origin.name,line:`식후에서 도보 약 ${walkMinFrom(distOf(after,state.origin))}분`};
+ const sameStart=Math.abs(walk.lat-state.origin.lat)<0.00002&&Math.abs(walk.lng-state.origin.lng)<0.00002;
  const points=[
-  {lat:rest.lat,lng:rest.lng,name:rest.name,line:`출발지에서 도보 약 ${rw}분`,cls:"rest",color:"#15803d",key:"sum-rest"},
-  {lat:after.lat,lng:after.lng,name:after.name,line:`식당에서 도보 약 ${aw}분`,cls:"after",color:"#1a1a1a",key:"sum-after"},
-  {lat:walk.lat,lng:walk.lng,name:walk.name,line:walk.line,cls:"walk",color:"#ffffff",key:"sum-walk"}
+  {lat:rest.lat,lng:rest.lng,name:rest.name,line:`출발지에서 도보 약 ${rw}분`,cls:"rest",kind:"eat",num:1,key:"sum-rest"},
+  {lat:after.lat,lng:after.lng,name:after.name,line:`식당에서 도보 약 ${aw}분`,cls:"after",kind:after.type==="dessert"?"cake":"cafe",num:2,key:"sum-after"},
+  {lat:walk.lat,lng:walk.lng,name:walk.name,line:walk.line,cls:"walk",kind:"walk",num:3,key:"sum-walk"}
  ];
- drawMap("summaryMap", [], {skipOrigin:true, points, line:points.map(p=>[p.lat,p.lng])});
+ const legs=[
+  {a:state.origin,b:rest,label:"출발→식당"},
+  {a:rest,b:after,label:"식당→식후"},
+  {a:after,b:walk,label:"식후→산책"}
+ ];
+ drawMap("summaryMap", [], {skipOrigin:!sameStart?false:true, points, routes:legs});
  const url=shareUrl();
  document.getElementById("shareUrl").value=url;
  history.replaceState(null,"",url);

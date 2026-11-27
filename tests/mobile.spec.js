@@ -117,6 +117,8 @@ test("인원을 고르기 전에는 식당이 나오지 않고, 네 인원 모�
   expect(backH).toBeGreaterThanOrEqual(44);
   await expect(page.locator(".leaflet-marker-icon").first()).toBeVisible();
   await expect(page.locator("#step-food .map-attr")).toContainText("OpenStreetMap");
+  await expect(page.locator("#step-food .legend")).toContainText("출발");
+  await expect(page.locator("#step-food .legend")).toContainText("식당");
   if (testInfo.project.name === "phone") await page.screenshot({ path: `${ART}/phone_restaurants_solo.png` });
   await noOverflow(page);
 
@@ -155,7 +157,7 @@ test("1명 코스: 식후는 카페·디저트만, 지도 마커는 목록과 �
   if (testInfo.project.name === "phone") {
     await page.locator("#foodList .place").first().scrollIntoViewIfNeeded();
     await page.screenshot({ path: `${ART}/phone_restaurants_photos.png` });
-    await page.locator("#map").scrollIntoViewIfNeeded();
+    await page.locator("#step-food .legend").scrollIntoViewIfNeeded();
     await page.screenshot({ path: `${ART}/phone_restaurants_map.png` });
   }
 
@@ -198,8 +200,6 @@ test("1명 코스: 식후는 카페·디저트만, 지도 마커는 목록과 �
   if (testInfo.project.name === "phone") {
     await page.locator("#afterList .thumb img").first().scrollIntoViewIfNeeded();
     await page.screenshot({ path: `${ART}/phone_after_photos.png` });
-    await page.locator("#afterMap").scrollIntoViewIfNeeded();
-    await page.screenshot({ path: `${ART}/phone_after_map.png` });
   }
   await page.locator("#afterList .place").first().locator("summary").click();
   await expect(page.locator("#afterList .place").first()).toContainText("가봤어요");
@@ -208,6 +208,17 @@ test("1명 코스: 식후는 카페·디저트만, 지도 마커는 목록과 �
   await cafe.locator("h3").click();
   await expect(page.locator("#afterMap .leaflet-popup-content")).toContainText(cafeName);
   await expect(page.locator("#afterMap .leaflet-popup-content")).toContainText("도보 약");
+  await expect(page.locator("#afterRoute")).toContainText("식당→식후");
+  await expect(page.locator("#afterRoute")).toContainText("분");
+  await expect(page.locator("#afterMap .num", { hasText: "2" })).toBeVisible();
+  await expect(page.locator("#afterMap .pin.cafe, #afterMap .pin.cake").first()).toBeVisible();
+  const afterBends = await page.locator("#afterMap path.leaflet-interactive").first().evaluate((el) => (el.getAttribute("d").match(/L/gi) || []).length);
+  expect(afterBends).toBeGreaterThan(1);
+  await noOverflow(page);
+  if (testInfo.project.name === "phone") {
+    await page.locator("#afterMap").scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${ART}/phone_after_map.png` });
+  }
   await noOverflow(page);
 
   await page.locator("#afterList .place").first().getByRole("button", { name: "식후로 정하기" }).click();
@@ -221,7 +232,14 @@ test("1명 코스: 식후는 카페·디저트만, 지도 마커는 목록과 �
   await expect(page.locator("#shareUrl")).toHaveValue(/party=1/);
   await expect(page.locator("#shareUrl")).toHaveValue(/rest=/);
   await expect(page.locator("#summaryMap .pin")).toHaveCount(3);
-  await expect(page.locator("#summaryMap path.leaflet-interactive")).toHaveCount(1);
+  await expect(page.locator("#summaryRoute")).toContainText("출발→식당");
+  await expect(page.locator("#summaryRoute")).toContainText("식후→산책");
+  await expect(page.locator("#summaryMap .num", { hasText: "1" })).toBeVisible();
+  await expect(page.locator("#summaryMap .num", { hasText: "3" })).toBeVisible();
+  await expect(page.locator("#step-summary .legend")).toContainText("산책");
+  await expect(page.locator("#summaryMap path.leaflet-interactive")).toHaveCount(3);
+  const summaryBends = await page.locator("#summaryMap path.leaflet-interactive").first().evaluate((el) => (el.getAttribute("d").match(/L/gi) || []).length);
+  expect(summaryBends).toBeGreaterThan(1);
   const sumH = await page.locator("#summaryMap").evaluate((el) => el.getBoundingClientRect().height);
   expect(sumH).toBeGreaterThanOrEqual(230);
   await expect.poll(async () => page.locator("#summaryMap .leaflet-tile").evaluateAll((imgs) => imgs.filter((img) => img.complete && img.naturalWidth > 0).length), { timeout: 20000 }).toBeGreaterThan(0);
@@ -230,6 +248,25 @@ test("1명 코스: 식후는 카페·디저트만, 지도 마커는 목록과 �
   if (testInfo.project.name === "phone") await page.screenshot({ path: `${ART}/phone_course_summary.png` });
   await page.getByRole("button", { name: "링크 복사" }).click();
   await expect(page.locator("#copyMsg")).toContainText("복사");
+  await noOverflow(page);
+  expect(errors).toEqual([]);
+});
+
+test("길 찾기가 막히면 점선과 안내 문구로 잇는다", async ({ page }) => {
+  const errors = watch(page);
+  await mockWeather(page, false);
+  await page.route("**/routing.openstreetmap.de/**", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ code: "NoRoute", routes: [] }) })
+  );
+  await page.goto("/");
+  await chooseParty(page, "1명 (혼밥)");
+  await page.locator("#foodList .place", { hasText: "새참당" }).locator("h3").click();
+  await expect(page.locator("#mapRoute")).toContainText("직선(경로 불러오기 실패)");
+  await expect(page.locator("#map path.leaflet-interactive")).toHaveAttribute("stroke-dasharray", /./);
+  await page.locator(".place", { hasText: "틈새라면" }).getByRole("button", { name: "여기로 정하기" }).click();
+  await page.locator("#afterList .place").first().locator("h3").click();
+  await expect(page.locator("#afterRoute")).toContainText("직선(경로 불러오기 실패)");
+  await expect(page.locator("#afterMap path.leaflet-interactive")).toHaveAttribute("stroke-dasharray", /./);
   await noOverflow(page);
   expect(errors).toEqual([]);
 });
