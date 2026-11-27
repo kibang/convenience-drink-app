@@ -2,84 +2,96 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f4e46">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="식사코스">
 <title>식사 · 식후 · 산책 코스</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <style>
-:root{color-scheme:light}
+:root{color-scheme:light;--pad:16px;--gap:12px;--radius:16px;--ink:#1c1c1c;--muted:#3d4744;--green:#1f4e46;--line:#e2e8e6}
 *{box-sizing:border-box}
 html,body{margin:0;overflow-x:hidden}
-body{font-family:system-ui,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;background:#f4f6f8;color:#1c1c1c;word-break:keep-all}
-header{background:#1f4e46;color:#fff;padding:14px 16px}
-header h1{margin:0;font-size:20px;line-height:1.35}
-header p{margin:6px 0 0;font-size:13px;opacity:.9}
-main{max-width:980px;margin:0 auto;padding:12px}
-.card{background:#fff;border-radius:12px;padding:12px;margin:0 0 12px;box-shadow:0 1px 3px #0001}
-h2{font-size:18px;margin:0 0 8px}
-.lead{font-size:16px;margin:0 0 10px}
-.choices{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.choices button,.act{min-height:48px;border-radius:10px;border:1px solid #c9d5d2;background:#fff;font-size:16px;font-weight:700;cursor:pointer}
-.choices button{padding:12px}
-.choices button.on,.act{background:#1f4e46;color:#fff;border-color:#1f4e46}
-.act{padding:8px 12px}
-.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-input[type=text],select{min-height:44px;font-size:16px;border:1px solid #ccd;border-radius:8px;padding:6px 8px;background:#fff}
-input[type=text]{flex:1 1 180px;min-width:0}
-.steps{display:flex;gap:6px;overflow:auto;margin:0 0 10px;padding-bottom:2px}
-.steps button{flex:0 0 auto;min-height:40px;border-radius:999px;border:1px solid #c9d5d2;background:#fff;padding:6px 10px;font-size:14px}
-.steps button.on{background:#1f4e46;color:#fff;border-color:#1f4e46}
-#map{height:220px;width:100%;border-radius:12px;background:#e7eef0}
+body{font-family:system-ui,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;background:#dfe7e4;color:var(--ink);font-size:16px;line-height:1.5;word-break:keep-all;overflow-wrap:break-word}
+.app{width:100%;max-width:480px;min-height:100dvh;margin:0 auto;background:#f4f6f8;display:flex;flex-direction:column}
+.topbar{position:sticky;top:0;z-index:40;background:var(--green);color:#fff;padding-top:env(safe-area-inset-top)}
+header{padding:12px var(--pad) 8px}
+header h1{margin:0;font-size:18px;line-height:1.4;font-weight:700}
+header p{margin:4px 0 8px;font-size:15px;line-height:1.5;opacity:.92}
+#openLog{min-height:44px;padding:8px 16px;border:0;border-radius:999px;background:#fff;color:var(--green);font-size:15px;font-weight:700}
+.steps{display:flex;gap:8px;overflow-x:auto;min-width:0;max-width:100%;margin:0;padding:0 var(--pad) 12px;background:var(--green)}
+.steps[hidden],.dock[hidden]{display:none!important}
+.steps button{flex:0 0 auto;min-height:44px;border-radius:999px;border:0;background:rgba(255,255,255,.16);color:#fff;padding:8px 12px;font-size:15px}
+.steps button.on{background:#fff;color:var(--green)}
+main{flex:1;display:flex;flex-direction:column;gap:var(--gap);padding:var(--pad);padding-bottom:var(--pad)}
+.app.has-dock main{padding-bottom:calc(88px + env(safe-area-inset-bottom))}
+section{display:flex;flex-direction:column;gap:var(--gap)}
+section[hidden]{display:none!important}
+.card{background:#fff;border-radius:var(--radius);padding:var(--pad);margin:0;box-shadow:0 1px 2px #00000014}
+h2{font-size:20px;line-height:1.4;margin:0 0 12px}
+h3{font-size:17px;line-height:1.4;margin:16px 0 8px}
+.card h3:first-child,.place h3{margin-top:0}
+.lead{font-size:16px;line-height:1.5;margin:0 0 12px}
+.choices{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap)}
+.choices button{min-height:88px;padding:16px 12px;border-radius:var(--radius);border:1px solid #c9d5d2;background:#fff;color:var(--ink);font-size:18px;font-weight:700;line-height:1.4}
+.act,.ghost{min-height:48px;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;padding:12px 16px}
+.act{display:block;width:100%;border:0;background:var(--green);color:#fff}
+.ghost{border:1px solid var(--green);background:#fff;color:var(--green)}
+.btn-row{display:flex;gap:8px}
+.btn-row .ghost{flex:1}
+.row{display:flex;flex-direction:column;align-items:stretch;gap:8px}
+input[type=text],select,textarea{width:100%;max-width:100%;min-height:44px;font-size:16px;line-height:1.5;border:1px solid #ccd;border-radius:12px;padding:8px 12px;background:#fff}
+textarea.logbox{min-height:120px;font-size:15px}
+.section-label{font-size:18px;line-height:1.4;margin:4px 0 0;padding:0}
+#map{height:38vh;min-height:200px;max-height:40vh;width:100%;border-radius:var(--radius);background:#e7eef0;overflow:hidden}
 .leaflet-container img{max-width:none!important;max-height:none!important}
-.leaflet-control-attribution{font-size:10px;max-width:100%;white-space:normal;background:rgba(255,255,255,.94)}
-.map-attr{font-size:12px;color:#333;margin:6px 0 0}
+.leaflet-bar a{width:36px;height:36px;line-height:36px}
+.leaflet-control-attribution{font-size:11px;line-height:1.4;max-width:calc(100% - 8px);white-space:normal;background:rgba(255,255,255,.94)}
+.map-attr{font-size:15px;line-height:1.5;color:var(--muted);margin:8px 0 0}
 .place{border:2px solid transparent}
-.place h3{margin:0 0 4px;font-size:17px}
-.meta,.note,.addr{margin:4px 0;font-size:14px;color:#333}
-.note{color:#222}
-.badge{display:inline-block;border-radius:6px;padding:2px 6px;font-size:12px;margin:0 4px 4px 0}
+.meta,.note,.addr{margin:8px 0 0;font-size:15px;line-height:1.5;color:var(--muted)}
+.badges{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.badge{display:inline-flex;align-items:center;min-height:28px;border-radius:8px;padding:4px 8px;font-size:13px;line-height:1.4;margin:0}
 .open{background:#e5f6ea;color:#146c2e}
 .closed{background:#fde8e8;color:#8d1d1d}
 .unknown{background:#fff4e0;color:#7a4b00}
 .est{background:#eef3ff;color:#1a3e8a}
-.warn{background:#fff4e0;border-left:4px solid #e0a100;padding:8px;font-size:14px}
-.promo{background:#f7f1ff}
-.drink{font-size:14px;padding:8px 0;border-top:1px solid #eee}
+.warn{background:#fff4e0;border-left:4px solid #e0a100;padding:12px;font-size:15px;line-height:1.5;border-radius:12px}
+#rainBanner .act{margin-top:8px}
+.drink{font-size:15px;line-height:1.5;padding:12px 0;border-top:1px solid var(--line)}
+.drink:first-of-type{border-top:0}
 a{color:#1a4fbf}
 :focus-visible{outline:3px solid #1a3e8a;outline-offset:2px}
 .pin-wrap{background:transparent;border:0}
 .pin{display:block;width:16px;height:16px;margin:3px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #222}
 .pin.visited{opacity:.4;filter:grayscale(1)}
 .place.visited{opacity:.5;filter:grayscale(.85)}
-.visit{display:flex;align-items:center;gap:8px;min-height:44px;font-size:15px}
-.menu-row{display:flex;gap:6px;margin-top:6px}
-.menu-row input{flex:1}
-.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-.chip{display:inline-flex;align-items:center;gap:4px;background:#e7f0ee;border-radius:999px;padding:4px 8px;font-size:14px}
-.chip button{border:0;background:transparent;min-height:32px;font-size:16px;cursor:pointer}
-.known-menu{display:flex;align-items:center;gap:6px;min-height:36px;font-size:14px}
-textarea.logbox{width:100%;min-height:88px;font-size:13px}
-.summary h3{margin:8px 0 4px}
-#shareUrl{width:100%;font-size:14px}
-@media(min-width:900px){
-  header h1{font-size:24px}
-  #map{height:340px}
-  .list{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-  .list .wide{grid-column:1/-1}
-}
-@media(max-width:600px){
-  main{padding:8px}
-  .choices{grid-template-columns:1fr}
-}
+.visit,.known-menu{display:flex;align-items:center;gap:8px;min-height:44px;font-size:15px;line-height:1.5}
+.menu-row{display:flex;gap:8px;align-items:center;margin-top:8px}
+.menu-row input{flex:1;min-width:0}
+.menu-row .ghost{flex:0 0 auto;min-width:72px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.chip{display:inline-flex;align-items:center;gap:4px;min-height:44px;background:#e7f0ee;border-radius:999px;padding:4px 4px 4px 12px;font-size:15px}
+.chip button{border:0;background:transparent;min-width:44px;min-height:44px;font-size:18px;cursor:pointer}
+.list,#afterList,#logList{display:flex;flex-direction:column;gap:var(--gap)}
+.dock{position:fixed;left:50%;transform:translateX(-50%);bottom:0;z-index:30;width:min(480px,100%);background:#fff;border-top:1px solid var(--line);padding:8px var(--pad) calc(8px + env(safe-area-inset-bottom))}
+#shareUrl{font-size:15px}
 </style>
 </head>
 <body>
+<div class="app">
+<div class="topbar">
 <header>
 <h1>식사 · 식후 · 산책</h1>
 <p>상암은 조사한 장소로, 그 밖은 지도 자료로 고릅니다.</p>
-<button type="button" id="openLog" style="margin-top:8px;min-height:40px;border-radius:999px;border:0;background:#fff;color:#1f4e46;font-weight:700;padding:6px 12px">내 기록</button>
+<button type="button" id="openLog">내 기록</button>
 </header>
-<main>
 <nav id="steps" class="steps" hidden aria-label="단계"></nav>
+</div>
+<main>
 <section id="step-party">
 <div class="card">
 <h2>몇 명이서 드실 건가요?</h2>
@@ -94,21 +106,21 @@ textarea.logbox{width:100%;min-height:88px;font-size:13px}
 </section>
 <section id="step-log" hidden>
 <div class="card">
-<button type="button" class="act" id="backLog" style="background:#fff;color:#1f4e46">이전</button>
 <h2>내 기록</h2>
 <label class="visit"><input type="checkbox" class="hide-visited"> 가본 곳 숨기기</label>
 <p class="note">이 브라우저에만 저장됩니다. OSM 묶음에는 장소 번호가 없어, 그 장소는 좌표와 이름으로 구분합니다.</p>
 <div id="logList"></div>
 <h3>내보내기 · 가져오기</h3>
-<button type="button" class="act" id="exportBtn" style="background:#fff;color:#1f4e46">내보내기</button>
-<button type="button" class="act" id="importBtn" style="background:#fff;color:#1f4e46">가져오기</button>
+<div class="btn-row">
+<button type="button" class="ghost" id="exportBtn">내보내기</button>
+<button type="button" class="ghost" id="importBtn">가져오기</button>
+</div>
 <textarea id="transferJson" class="logbox" aria-label="기록 JSON"></textarea>
 <p id="transferMsg" class="note" role="status"></p>
 </div>
 </section>
 <section id="step-place" hidden>
 <div class="card">
-<button type="button" class="act" id="backPlace">이전</button>
 <h2>어디서 시작할까요?</h2>
 <p id="originLabel" class="lead"></p>
 <div class="row">
@@ -116,7 +128,7 @@ textarea.logbox{width:100%;min-height:88px;font-size:13px}
 <input type="text" id="addr" placeholder="주소 또는 위도,경도" aria-label="주소 또는 좌표">
 <button type="button" class="act" id="addrBtn">검색</button>
 </div>
-<div class="row" style="margin-top:8px">
+<div class="row">
 <select id="preset" aria-label="지역 바로 선택"><option value="">지역 바로 선택…</option><option value="37.5795,126.889">누리꿈스퀘어</option><option value="37.5663,126.9779">서울시청</option><option value="37.4979,127.0276">강남역</option><option value="37.5572,126.9245">홍대입구역</option><option value="37.5133,127.1001">잠실역</option><option value="37.5216,126.9243">여의도역</option><option value="37.5446,127.056">성수역</option><option value="37.5551,126.9368">신촌역</option><option value="37.5404,127.0692">건대입구역</option><option value="37.5714,126.9918">종로3가</option><option value="37.5927,127.0164">성신여대입구역</option><option value="37.2664,127.0001">수원역</option><option value="37.4563,126.7052">인천시청</option><option value="35.1578,129.06">부산 서면</option><option value="35.8693,128.5956">대구 동성로</option><option value="36.3326,127.4342">대전역</option><option value="35.1475,126.9156">광주 충장로</option></select>
 </div>
 <p id="locMsg" class="note" role="status"></p>
@@ -124,8 +136,7 @@ textarea.logbox{width:100%;min-height:88px;font-size:13px}
 </div>
 </section>
 <section id="step-food" hidden>
-<div class="card wide">
-<button type="button" class="act" id="backFood">이전</button>
+<div class="card">
 <h2>식당</h2>
 <p id="foodIntro" class="note"></p>
 <label class="visit"><input type="checkbox" class="hide-visited"> 가본 곳 숨기기</label>
@@ -136,7 +147,6 @@ textarea.logbox{width:100%;min-height:88px;font-size:13px}
 </section>
 <section id="step-after" hidden>
 <div class="card">
-<button type="button" class="act" id="backAfter">이전</button>
 <h2>식후</h2>
 <p id="afterIntro" class="note"></p>
 </div>
@@ -145,7 +155,6 @@ textarea.logbox{width:100%;min-height:88px;font-size:13px}
 </section>
 <section id="step-course" hidden>
 <div class="card">
-<button type="button" class="act" id="backCourse">이전</button>
 <h2>코스</h2>
 <p id="rainBanner" class="warn" hidden></p>
 <p id="sunNote" class="note"></p>
@@ -155,7 +164,6 @@ textarea.logbox{width:100%;min-height:88px;font-size:13px}
 </section>
 <section id="step-summary" hidden>
 <div class="card summary">
-<button type="button" class="act" id="backSummary">이전</button>
 <h2>오늘의 코스</h2>
 <div id="summaryBody"></div>
 <label for="shareUrl">공유 링크</label>
@@ -165,6 +173,10 @@ textarea.logbox{width:100%;min-height:88px;font-size:13px}
 </div>
 </section>
 </main>
+<div class="dock" id="dock" hidden>
+<button type="button" class="act" id="dockBack">뒤로</button>
+</div>
+</div>
 <script src="vendor/leaflet/leaflet.js"></script>
 <script src="data.js"></script>
 <script>
@@ -256,6 +268,7 @@ function go(step,resetAfter){
  if(resetAfter){state.rest=null;state.after=null;state.course=null}
  ["party","place","food","after","course","summary","log"].forEach(s=>document.getElementById("step-"+s).hidden=s!==step);
  renderSteps();
+ syncDock();
  if(step==="place")paintOrigin();
  if(step==="food")renderFood();
  if(step==="after")renderAfter();
@@ -276,12 +289,17 @@ document.getElementById("partyChoices").onclick=e=>{
  state.rest=null;state.after=null;state.course=null;
  go("place");
 };
-document.getElementById("backPlace").onclick=()=>go("party");
 document.getElementById("toFood").onclick=()=>go("food");
-document.getElementById("backFood").onclick=()=>go("place");
-document.getElementById("backAfter").onclick=()=>go("food");
-document.getElementById("backCourse").onclick=()=>go("after");
-document.getElementById("backSummary").onclick=()=>go("course");
+document.getElementById("dockBack").onclick=()=>{
+ const prev={place:"party",food:"place",after:"food",course:"after",summary:"course",log:state.returnStep||"party"};
+ go(prev[state.step]||"party");
+};
+function syncDock(){
+ const dock=document.getElementById("dock");
+ const show=state.step!=="party";
+ dock.hidden=!show;
+ document.querySelector(".app").classList.toggle("has-dock",show);
+}
 const PRESETS=document.getElementById("preset");
 PRESETS.onchange=()=>{const v=PRESETS.value;if(!v)return;const [a,b]=v.split(",");setOrigin(+a,+b,PRESETS.selectedOptions[0].text,"");document.getElementById("locMsg").textContent=PRESETS.selectedOptions[0].text+"으로 맞췄어요.";};
 document.getElementById("geo").onclick=()=>{
@@ -426,8 +444,8 @@ function placeCard(p,buttonLabel,onPick){
  const id="p-"+encodeURIComponent(p.name);
  return `<article class="card place${isVisited(p)?" visited":""}" id="${id}" data-name="${esc(p.name)}" data-id="${esc(placeId(p))}">
   <h3>${esc(p.name)}</h3>
-  <p class="meta">${esc(p.category||"")} · ${p.d}m · 도보 약 ${walk}분 <span class="badge est">추정</span></p>
-  ${fit}<span class="badge ${st.state}">${esc(st.text)}</span>
+  <p class="meta">${esc(p.category||"")} · ${p.d}m · 도보 약 ${walk}분</p>
+  <div class="badges">${fit}<span class="badge est">추정</span><span class="badge ${st.state}">${esc(st.text)}</span></div>
   ${p.hours?`<p class="note">영업시간: ${esc(p.hours)}</p>`:""}
   ${p.address?`<p class="addr">${esc(p.address)}</p>`:""}
   ${p.notes?`<p class="note">${esc(p.notes)}</p>`:""}
@@ -447,7 +465,7 @@ function visitBlock(p){
  const known=(p.type==="restaurant"||!p.type)?knownMenuItems(p):[];
  const knownHtml=known.map(name=>`<label class="known-menu"><input type="checkbox" class="ate-known" data-id="${esc(id)}" data-menu="${esc(name)}" ${ate.includes(name)?"checked":""}> ${esc(name)} <span class="note">자료에 적힌 메뉴</span></label>`).join("");
  const chips=ate.map(name=>`<span class="chip">${esc(name)} <button type="button" class="menu-x" data-id="${esc(id)}" data-menu="${esc(name)}" aria-label="${esc(name)} 삭제">×</button></span>`).join("");
- const editor=(p.type==="restaurant"||!p.type)?`<div class="menu-row"><input class="menu-input" data-id="${esc(id)}" aria-label="먹은 메뉴" placeholder="먹은 메뉴 이름"><button type="button" class="act menu-add" data-id="${esc(id)}" style="background:#fff;color:#1f4e46">추가</button></div><div class="chips">${chips}</div>`:"";
+ const editor=(p.type==="restaurant"||!p.type)?`<div class="menu-row"><input class="menu-input" data-id="${esc(id)}" aria-label="먹은 메뉴" placeholder="먹은 메뉴 이름"><button type="button" class="ghost menu-add" data-id="${esc(id)}">추가</button></div><div class="chips">${chips}</div>`:"";
  return `<label class="visit"><input type="checkbox" class="visited-toggle" data-id="${esc(id)}" ${visited?"checked":""}> 가봤어요</label>${badge}${knownHtml}${editor}`;
 }
 function bindVisit(root,list,rerender){
@@ -525,7 +543,7 @@ async function renderAfter(){
  const groups=["cafe","dessert","convenience"].map(type=>{
   const rows=capGroup(places.filter(p=>p.type===type));
   if(!rows.length)return "";
-  return `<h2 class="card wide" style="margin:0">${labels[type]}</h2>`+rows.map(p=>placeCard(p,"식후로 정하기")).join("");
+  return `<h2 class="section-label">${labels[type]}</h2>`+rows.map(p=>placeCard(p,"식후로 정하기")).join("");
  }).join("");
  const box=document.getElementById("afterList");
  box.innerHTML=groups||`<div class="card">가까운 식후 장소가 없어요.</div>`;
@@ -546,7 +564,7 @@ function capGroup(rows){
 function syncHide(){document.querySelectorAll(".hide-visited").forEach(el=>{el.checked=!!state.log.hideVisited})}
 function renderLog(){
  const rows=Object.values(state.log.places).filter(p=>p.visited||(p.menus&&p.menus.length)).sort((a,b)=>(b.visitedAt||"").localeCompare(a.visitedAt||"")||a.name.localeCompare(b.name,"ko"));
- document.getElementById("logList").innerHTML=rows.length?rows.map(p=>`<article class="card" data-id="${esc(p.id)}"><h3>${esc(p.name)}</h3><p class="note">${p.visited?`가본 곳 ${esc(p.visitedAt||"")}`:"방문 체크는 꺼져 있음"}</p><p class="note">${(p.menus||[]).length?`먹은 메뉴: ${p.menus.map(esc).join(", ")}`:"먹은 메뉴 없음"}</p>${p.visited?`<button type="button" class="act unvisit" data-id="${esc(p.id)}" style="background:#fff;color:#1f4e46">가봤어요 해제</button>`:""}</article>`).join(""):`<p class="note">아직 기록이 없어요.</p>`;
+ document.getElementById("logList").innerHTML=rows.length?rows.map(p=>`<article class="card" data-id="${esc(p.id)}"><h3>${esc(p.name)}</h3><p class="note">${p.visited?`가본 곳 ${esc(p.visitedAt||"")}`:"방문 체크는 꺼져 있음"}</p><p class="note">${(p.menus||[]).length?`먹은 메뉴: ${p.menus.map(esc).join(", ")}`:"먹은 메뉴 없음"}</p>${p.visited?`<button type="button" class="ghost unvisit" data-id="${esc(p.id)}">가봤어요 해제</button>`:""}</article>`).join(""):`<p class="note">아직 기록이 없어요.</p>`;
  document.getElementById("logList").querySelectorAll(".unvisit").forEach(b=>b.onclick=()=>{
   const r=state.log.places[b.dataset.id];if(!r)return;
   r.visited=false;r.visitedAt="";
@@ -556,7 +574,6 @@ function renderLog(){
  syncHide();
 }
 document.getElementById("openLog").onclick=()=>{state.returnStep=state.step;go("log");renderLog()};
-document.getElementById("backLog").onclick=()=>go(state.returnStep||"party");
 document.querySelectorAll(".hide-visited").forEach(el=>el.onchange=()=>{
  state.log.hideVisited=el.checked;saveLog();syncHide();
  if(state.step==="food")renderFood();

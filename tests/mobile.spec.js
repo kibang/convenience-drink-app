@@ -32,8 +32,11 @@ async function mockWeather(page, rainy) {
 }
 
 async function noOverflow(page) {
-  const wide = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
-  expect(wide).toBeFalsy();
+  const box = await page.evaluate(() => ({
+    sw: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+    iw: window.innerWidth,
+  }));
+  expect(box.sw).toBeLessThanOrEqual(box.iw + 1);
 }
 
 async function chooseParty(page, name) {
@@ -50,7 +53,15 @@ test("인원을 고르기 전에는 식당이 나오지 않고, 네 인원 모�
   const errors = watch(page);
   await mockWeather(page, false);
   await page.goto("/");
+  const viewport = await page.locator('meta[name="viewport"]').getAttribute("content");
+  expect(viewport).toContain("width=device-width");
+  expect(viewport).toContain("initial-scale=1");
+  expect(viewport).toContain("viewport-fit=cover");
   await expect(page.getByRole("heading", { name: "몇 명이서 드실 건가요?" })).toBeVisible();
+  const partyCols = await page.locator(".choices").evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length);
+  expect(partyCols).toBe(2);
+  const partyH = await page.locator(".choices button").first().evaluate((el) => el.getBoundingClientRect().height);
+  expect(partyH).toBeGreaterThanOrEqual(44);
   await expect(page.locator("#step-food")).toBeHidden();
   await expect(page.locator("#foodList .place")).toHaveCount(0);
   if (testInfo.project.name === "phone") await page.screenshot({ path: `${ART}/phone_start.png` });
@@ -60,6 +71,11 @@ test("인원을 고르기 전에는 식당이 나오지 않고, 네 인원 모�
   await expect(page.locator("#foodList")).toContainText("틈새라면");
   await expect(page.locator("#foodList")).not.toContainText("전설의 우대갈비");
   await expect(page.locator("#foodList")).not.toContainText("롯데시네마");
+  const mapRatio = await page.evaluate(() => document.querySelector("#map").getBoundingClientRect().height / window.innerHeight);
+  expect(mapRatio).toBeGreaterThanOrEqual(0.35);
+  expect(mapRatio).toBeLessThanOrEqual(0.4);
+  const backH = await page.locator("#dockBack").evaluate((el) => el.getBoundingClientRect().height);
+  expect(backH).toBeGreaterThanOrEqual(44);
   await expect(page.locator(".leaflet-marker-icon").first()).toBeVisible();
   await expect(page.locator(".map-attr")).toContainText("OpenStreetMap");
   if (testInfo.project.name === "phone") await page.screenshot({ path: `${ART}/phone_restaurants_solo.png` });
@@ -190,7 +206,7 @@ test("가봤어요는 새로고침 뒤에도 흐리게 맨 아래 남고, 기록
   await page.locator("#transferJson").fill(raw);
   await page.getByRole("button", { name: "가져오기" }).click();
   await expect(page.locator("#logList")).toContainText("김치찌개");
-  await page.getByRole("button", { name: "이전" }).click();
+  await page.getByRole("button", { name: "뒤로" }).click();
   await chooseParty(page, "1명 (혼밥)");
   const again = await page.locator("#foodList .place h3").allTextContents();
   expect(again.at(-1)).toContain("새참당");

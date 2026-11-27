@@ -13,7 +13,9 @@ module.exports = defineConfig({
     timezoneId: "Asia/Seoul",
   },
   projects: [
+    { name: "w360", use: { viewport: { width: 360, height: 780 } } },
     { name: "phone", use: { viewport: { width: 390, height: 844 } } },
+    { name: "w430", use: { viewport: { width: 430, height: 932 } } },
     { name: "desktop", use: { viewport: { width: 1280, height: 800 } } },
   ],
   webServer: {
