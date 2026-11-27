@@ -71,9 +71,10 @@ test("인원을 고르기 전에는 식당이 나오지 않고, 네 인원 모�
   await expect(page.locator("#foodList")).toContainText("틈새라면");
   await expect(page.locator("#foodList")).not.toContainText("전설의 우대갈비");
   await expect(page.locator("#foodList")).not.toContainText("롯데시네마");
-  const mapRatio = await page.evaluate(() => document.querySelector("#map").getBoundingClientRect().height / window.innerHeight);
-  expect(mapRatio).toBeGreaterThanOrEqual(0.35);
-  expect(mapRatio).toBeLessThanOrEqual(0.4);
+  const mapH = await page.locator("#map").evaluate((el) => el.getBoundingClientRect().height);
+  expect(mapH).toBeGreaterThanOrEqual(230);
+  expect(mapH).toBeLessThanOrEqual(250);
+  await expect.poll(async () => page.locator("#map .leaflet-tile").evaluateAll((imgs) => imgs.filter((img) => img.complete && img.naturalWidth > 0).length), { timeout: 20000 }).toBeGreaterThan(0);
   const backH = await page.locator("#dockBack").evaluate((el) => el.getBoundingClientRect().height);
   expect(backH).toBeGreaterThanOrEqual(44);
   await expect(page.locator(".leaflet-marker-icon").first()).toBeVisible();
@@ -121,7 +122,8 @@ test("1명 코스: 식후 행사 음료와 요약", async ({ page }, testInfo) =
     return data.some((x) => x.name === item.name && x.chain === item.chain && String(x.price) === item.price && x.promo === item.promo);
   }, row);
   expect(found).toBeTruthy();
-  await expect(page.locator("#afterList .place").first().locator("details")).toHaveCount(0);
+  await page.locator("#afterList .place").first().locator("summary").click();
+  await expect(page.locator("#afterList .place").first()).toContainText("가봤어요");
 
   await page.locator("#afterList .place", { hasText: "편의점" }).first().getByRole("button", { name: "식후로 정하기" }).click();
   await expect(page.getByRole("heading", { name: "코스", exact: true })).toBeVisible();
@@ -165,12 +167,23 @@ test("가봤어요는 새로고침 뒤에도 흐리게 맨 아래 남고, 기록
   await chooseParty(page, "1명 (혼밥)");
   const before = await page.locator("#foodList .place h3").allTextContents();
   expect(before[0]).toContain("새참당");
-  await page.locator("#foodList .place", { hasText: "새참당" }).getByRole("checkbox", { name: "가봤어요" }).check();
+  const openSaecham = async () => {
+    const card = page.locator("#foodList .place", { hasText: "새참당" });
+    if ((await card.locator("details").getAttribute("open")) === null) await card.locator("summary").click();
+    return card;
+  };
+  if (testInfo.project.name === "phone") {
+    const opened = await openSaecham();
+    await opened.getByText("가봤어요").scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${ART}/phone_card_open.png` });
+  }
+  await (await openSaecham()).getByRole("checkbox", { name: "가봤어요" }).click();
+  await expect(page.locator("#foodList .place.visited", { hasText: "새참당" })).toBeVisible();
+  await (await openSaecham()).getByRole("checkbox", { name: /유린기/ }).click();
+  const typed = await openSaecham();
+  await typed.locator(".menu-input").fill("김치찌개");
+  await typed.getByRole("button", { name: "추가" }).click();
   const card = () => page.locator("#foodList .place.visited", { hasText: "새참당" });
-  await expect(card()).toBeVisible();
-  await card().getByRole("checkbox", { name: /유린기/ }).check();
-  await card().locator(".menu-input").fill("김치찌개");
-  await card().getByRole("button", { name: "추가" }).click();
   await expect(card()).toContainText("김치찌개");
   await expect(card()).toContainText("유린기 덮밥");
   await expect(card()).toContainText("가본 곳");
