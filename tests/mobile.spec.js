@@ -31,6 +31,32 @@ async function mockWeather(page, rainy) {
   );
 }
 
+async function photosOk(page, root) {
+  await page.locator(`${root} .place`).first().scrollIntoViewIfNeeded();
+  await page.waitForFunction((sel) => {
+    const first = document.querySelector(`${sel} .thumb`);
+    if (!first) return false;
+    const img = first.querySelector("img");
+    const ph = first.querySelector(".ph");
+    if (!img) return !!(ph && !ph.hidden);
+    return img.complete;
+  }, root);
+  const kinds = await page.locator(`${root} .thumb`).evaluateAll((nodes) =>
+    nodes.map((n) => {
+      const img = n.querySelector("img");
+      const ph = n.querySelector(".ph");
+      if (!img) return ph && !ph.hidden ? "fallback" : "broken";
+      if (!img.complete) return "pending";
+      if (img.naturalWidth > 0 && !img.hidden) return "photo";
+      if (ph && !ph.hidden) return "fallback";
+      return "broken";
+    })
+  );
+  expect(kinds.length).toBeGreaterThan(0);
+  expect(kinds).not.toContain("broken");
+  return kinds;
+}
+
 async function noOverflow(page) {
   const box = await page.evaluate(() => ({
     sw: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
@@ -120,8 +146,18 @@ test("1명 코스: 식후는 카페·디저트만, 지도 마커는 목록과 �
   const foodCount = Number((await page.locator("#foodIntro").textContent()).match(/(\d+)곳/)[1]);
   await expect(page.locator("#map .pin.place")).toHaveCount(foodCount);
   await expect.poll(async () => page.locator("#map .leaflet-tile").evaluateAll((imgs) => imgs.filter((img) => img.complete && img.naturalWidth > 0).length), { timeout: 20000 }).toBeGreaterThan(0);
+  const foodPhotos = await photosOk(page, "#foodList");
+  expect(foodPhotos).toContain("photo");
+  expect(foodPhotos).toContain("fallback");
+  await expect(page.locator("#foodList .place", { hasText: "새참당" })).toContainText("사진: 네이버 블로그");
+  await expect(page.locator("#foodList .place", { hasText: "맥도날드" })).toContainText("대표 이미지 · 가게 사진 아님");
   await noOverflow(page);
-  if (testInfo.project.name === "phone") await page.screenshot({ path: `${ART}/phone_restaurants_map.png` });
+  if (testInfo.project.name === "phone") {
+    await page.locator("#foodList .place").first().scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${ART}/phone_restaurants_photos.png` });
+    await page.locator("#map").scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${ART}/phone_restaurants_map.png` });
+  }
 
   await page.locator("#map").scrollIntoViewIfNeeded();
   await page.locator('#map .leaflet-marker-icon[title="미분당 상암DMC점"]').click();
@@ -156,8 +192,15 @@ test("1명 코스: 식후는 카페·디저트만, 지도 마커는 목록과 �
   const afterH = await page.locator("#afterMap").evaluate((el) => el.getBoundingClientRect().height);
   expect(afterH).toBeGreaterThanOrEqual(230);
   await expect.poll(async () => page.locator("#afterMap .leaflet-tile").evaluateAll((imgs) => imgs.filter((img) => img.complete && img.naturalWidth > 0).length), { timeout: 20000 }).toBeGreaterThan(0);
-  await page.locator("#afterMap").scrollIntoViewIfNeeded();
-  if (testInfo.project.name === "phone") await page.screenshot({ path: `${ART}/phone_after_map.png` });
+  const afterPhotos = await photosOk(page, "#afterList");
+  expect(afterPhotos).toContain("photo");
+  await noOverflow(page);
+  if (testInfo.project.name === "phone") {
+    await page.locator("#afterList .thumb img").first().scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${ART}/phone_after_photos.png` });
+    await page.locator("#afterMap").scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${ART}/phone_after_map.png` });
+  }
   await page.locator("#afterList .place").first().locator("summary").click();
   await expect(page.locator("#afterList .place").first()).toContainText("가봤어요");
   const cafe = page.locator("#afterList .place").first();

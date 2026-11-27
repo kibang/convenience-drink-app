@@ -61,6 +61,16 @@ textarea.logbox{min-height:120px;font-size:15px}
 .map-attr{font-size:14px;line-height:1.5;color:#3f3f46;margin:8px 0 0}
 .place{border:2px solid transparent;cursor:pointer}
 .place.on{border-color:#15803d}
+.place-top{display:flex;gap:12px;align-items:flex-start}
+.thumb{width:88px;height:88px;flex:0 0 88px;border-radius:12px;overflow:hidden;background:#f4f4f5}
+.thumb img{width:88px;height:88px;object-fit:cover;display:block}
+.ph{width:88px;height:88px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:#f4f4f5;color:#1a1a1a}
+.ph[hidden]{display:none!important}
+.ph svg{width:28px;height:28px}
+.ph b{font-size:13px;line-height:1.2}
+.place-main{min-width:0;flex:1}
+.credit{margin:8px 0 0;font-size:13px;line-height:1.4;color:#3f3f46}
+.credit a{color:#3f3f46}
 .meta,.note,.addr{margin:8px 0 0;font-size:15px;line-height:1.5;color:#3f3f46}
 .badges{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 .badge{display:inline-flex;align-items:center;min-height:28px;border-radius:8px;padding:4px 8px;font-size:13px;line-height:1.4;margin:0}
@@ -695,6 +705,29 @@ function shortTag(p){
  if(sizes.includes("1"))return "혼밥 OK";
  return "";
 }
+function tileLabel(p){
+ if(p.type==="cafe")return "카페";
+ if(p.type==="dessert")return "디저트";
+ const k=foodKeys(p)[0];
+ return FOOD_LABEL[k]||"식당";
+}
+function tileSvg(){return `<svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="34" r="18" fill="none" stroke="#15803d" stroke-width="3"/><path d="M22 34h20M32 22v8" stroke="#15803d" stroke-width="3" stroke-linecap="round"/></svg>`}
+function thumbHtml(p){
+ const ph=`<div class="ph"${p.imageUrl?` hidden`:""}>${tileSvg()}<b>${esc(tileLabel(p))}</b></div>`;
+ if(!p.imageUrl)return `<div class="thumb">${ph}</div>`;
+ return `<div class="thumb">${ph}<img src="${esc(p.imageUrl)}" alt="" width="88" height="88" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="imgFail(this)"></div>`;
+}
+function creditHtml(p){
+ if(p.imageUrl&&p.imageCredit)return `<p class="credit"><a href="${esc(p.imageSourceUrl||p.sourceUrl||"")}" target="_blank" rel="noopener">사진: ${esc(p.imageCredit)}</a></p>`;
+ return `<p class="credit">대표 이미지 · 가게 사진 아님</p>`;
+}
+function imgFail(img){
+ img.hidden=true;
+ const ph=img.parentElement.querySelector(".ph");
+ if(ph) ph.hidden=false;
+ const c=img.closest(".place")&&img.closest(".place").querySelector(".credit");
+ if(c) c.textContent="대표 이미지 · 가게 사진 아님";
+}
 function placeCard(p,buttonLabel){
  const st=openStatus(p.hours);
  const walk=cardWalk(p);
@@ -702,9 +735,15 @@ function placeCard(p,buttonLabel){
  const price=p.priceNote?`<p class="note">가격 메모: ${esc(p.priceNote)}. 메뉴 전체가 아닙니다.</p>`:"";
  const id="p-"+encodeURIComponent(placeId(p));
  return `<article class="card place${isVisited(p)?" visited":""}" id="${id}" data-name="${esc(p.name)}" data-id="${esc(placeId(p))}">
+  <div class="place-top">
+  ${thumbHtml(p)}
+  <div class="place-main">
   <h3>${esc(p.name)}</h3>
   <p class="meta">${esc(p.category||"식당")} · 도보 약 ${walk}분</p>
   ${tag?`<div class="badges"><span class="badge">${esc(tag)}</span></div>`:""}
+  ${creditHtml(p)}
+  </div>
+  </div>
   <details class="more"><summary>자세히</summary>
   <p class="note">${esc(st.text)}</p>
   ${p.hours?`<p class="note">${esc(p.hours)}</p>`:""}
