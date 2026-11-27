@@ -142,6 +142,63 @@ test("비 예보면 실내 코스로 바꾸고 야외로 되돌릴 수 있다", 
   expect(errors).toEqual([]);
 });
 
+test("가봤어요는 새로고침 뒤에도 흐리게 맨 아래 남고, 기록은 내보내고 가져온다", async ({ page }, testInfo) => {
+  const errors = watch(page);
+  await mockWeather(page, false);
+  await page.goto("/");
+  await chooseParty(page, "1명 (혼밥)");
+  const before = await page.locator("#foodList .place h3").allTextContents();
+  expect(before[0]).toContain("새참당");
+  await page.locator("#foodList .place", { hasText: "새참당" }).getByRole("checkbox", { name: "가봤어요" }).check();
+  const card = () => page.locator("#foodList .place.visited", { hasText: "새참당" });
+  await expect(card()).toBeVisible();
+  await card().getByRole("checkbox", { name: /유린기/ }).check();
+  await card().locator(".menu-input").fill("김치찌개");
+  await card().getByRole("button", { name: "추가" }).click();
+  await expect(card()).toContainText("김치찌개");
+  await expect(card()).toContainText("유린기 덮밥");
+  await expect(card()).toContainText("가본 곳");
+
+  await page.reload();
+  await chooseParty(page, "1명 (혼밥)");
+  const names = await page.locator("#foodList .place h3").allTextContents();
+  expect(names.at(-1)).toContain("새참당");
+  expect(names[0]).not.toContain("새참당");
+  const visited = page.locator("#foodList .place.visited", { hasText: "새참당" });
+  await expect(visited).toContainText("가본 곳");
+  await expect(visited).toContainText("김치찌개");
+  await expect(visited.getByRole("button", { name: "여기로 정하기" })).toBeEnabled();
+  if (testInfo.project.name === "phone") {
+    await visited.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${ART}/phone_visited_bottom.png` });
+  }
+
+  await page.getByRole("button", { name: "내 기록" }).click();
+  await expect(page.locator("#logList")).toContainText("새참당");
+  await expect(page.locator("#logList")).toContainText("김치찌개");
+  if (testInfo.project.name === "phone") await page.screenshot({ path: `${ART}/phone_history.png` });
+  await page.getByRole("button", { name: "내보내기" }).click();
+  const raw = await page.locator("#transferJson").inputValue();
+  const dumped = JSON.parse(raw);
+  expect(dumped.places).toBeTruthy();
+  expect(JSON.stringify(dumped)).toContain("김치찌개");
+
+  await page.evaluate(() => localStorage.removeItem("course-history-v1"));
+  await page.reload();
+  await page.getByRole("button", { name: "내 기록" }).click();
+  await expect(page.locator("#logList")).toContainText("아직 기록이 없어요");
+  await page.locator("#transferJson").fill(raw);
+  await page.getByRole("button", { name: "가져오기" }).click();
+  await expect(page.locator("#logList")).toContainText("김치찌개");
+  await page.getByRole("button", { name: "이전" }).click();
+  await chooseParty(page, "1명 (혼밥)");
+  const again = await page.locator("#foodList .place h3").allTextContents();
+  expect(again.at(-1)).toContain("새참당");
+  await expect(page.locator("#foodList .place.visited")).toContainText("유린기 덮밥");
+  await noOverflow(page);
+  expect(errors).toEqual([]);
+});
+
 test("위치 권한이 없어도 누리꿈스퀘어로 식당을 본다", async ({ page, context }) => {
   const errors = watch(page);
   await mockWeather(page, false);
